@@ -7,7 +7,7 @@ export interface ReplyPreferences {
   escalation_topics: string;
 }
 export const defaultReplies: ReplyPreferences = {
-  tone: "friendly",
+  tone: "professional",
   goal: "product_visit",
   escalation_topics: "",
 };

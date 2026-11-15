@@ -1,3 +1,4 @@
+import { demoProductMatch } from "../products/demo-catalog.ts";
 import { demoAccount, demoDetails } from "./data.ts";
 import { readStored, saveStored } from "../../shared/storage.ts";
 import type { PostDetail, SocialAccount } from "../../api/types";
@@ -41,12 +42,24 @@ export function demoPosts(account: string): PostDetail[] {
       id: m.id + offset,
       post_id: d.post.id + offset,
       account_id: a.id,
+      classification: m.classification
+        ? {
+            ...m.classification,
+            ...demoProductMatch(a.id, m.text, d.post.caption),
+          }
+        : null,
     })),
     key_comments: d.key_comments.map((m) => ({
       ...m,
       id: m.id + offset,
       post_id: d.post.id + offset,
       account_id: a.id,
+      classification: m.classification
+        ? {
+            ...m.classification,
+            ...demoProductMatch(a.id, m.text, d.post.caption),
+          }
+        : null,
     })),
   }));
 }

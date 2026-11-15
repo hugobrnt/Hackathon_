@@ -65,63 +65,83 @@ export function ReplyPreferencesForm({
             });
           }}
         >
-          <div className="form-columns">
-            <label className="field">
-              Tone
-              <select
-                disabled={busy || loading}
-                value={form.tone}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    tone: e.target.value as ReplyPreferences["tone"],
-                  })
-                }
-              >
-                <option value="friendly">Friendly</option>
-                <option value="professional">Professional</option>
-                <option value="concise">Concise</option>
-              </select>
-            </label>
-            <label className="field">
-              Goal
-              <select
-                disabled={busy || loading}
-                value={form.goal}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    goal: e.target.value as ReplyPreferences["goal"],
-                  })
-                }
-              >
-                <option value="product_visit">Visit the product page</option>
-                <option value="trial">Explore a trial</option>
-                <option value="demo">Explore a demo</option>
-              </select>
-            </label>
-          </div>
-          <label className="field">
-            Topics to send to me
-            <input
-              maxLength={1000}
-              disabled={busy || loading}
-              placeholder="refund, cancellation, privacy"
-              value={form.escalation_topics}
-              onChange={(e) =>
-                setForm({ ...form, escalation_topics: e.target.value })
-              }
-            />
-            <small>
-              Separate keywords with commas. Matching comments always require
-              your approval.
-            </small>
-          </label>
+          <ReplyPreferenceFields
+            form={form}
+            onChange={setForm}
+            disabled={busy || loading}
+          />
           <Button primary type="submit" disabled={busy || loading}>
             {loading ? "Loading…" : "Save reply settings"}
           </Button>
         </form>
       )}
     </section>
+  );
+}
+
+export function ReplyPreferenceFields({
+  form,
+  onChange,
+  disabled = false,
+}: {
+  form: ReplyPreferences;
+  onChange: (value: ReplyPreferences) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <>
+      <div className="form-columns">
+        <label className="field">
+          Tone
+          <select
+            disabled={disabled}
+            value={form.tone}
+            onChange={(e) =>
+              onChange({
+                ...form,
+                tone: e.target.value as ReplyPreferences["tone"],
+              })
+            }
+          >
+            <option value="friendly">Friendly</option>
+            <option value="professional">Warm & professional</option>
+            <option value="concise">Concise</option>
+          </select>
+        </label>
+        <label className="field">
+          Goal
+          <select
+            disabled={disabled}
+            value={form.goal}
+            onChange={(e) =>
+              onChange({
+                ...form,
+                goal: e.target.value as ReplyPreferences["goal"],
+              })
+            }
+          >
+            <option value="product_visit">Visit the product page</option>
+            <option value="trial">Explore a trial</option>
+            <option value="demo">Explore a demo</option>
+          </select>
+        </label>
+      </div>
+      <label className="field">
+        Topics to send to me
+        <input
+          maxLength={1000}
+          disabled={disabled}
+          placeholder="refund, cancellation, privacy"
+          value={form.escalation_topics}
+          onChange={(e) =>
+            onChange({ ...form, escalation_topics: e.target.value })
+          }
+        />
+        <small>
+          Separate keywords with commas. Matching comments and DMs are sent to
+          you for review.
+        </small>
+      </label>
+    </>
   );
 }

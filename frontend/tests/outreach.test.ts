@@ -1,3 +1,4 @@
+import { readDemoCatalog } from "../src/domains/products/demo-catalog.ts";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { outreachFor, liveOutreach } from "../src/api/outreach.ts";
@@ -52,7 +53,13 @@ test("the entire demo DM lifecycle works offline and click-through rate counts c
     const pending = before.attempts.find(
       (a) => a.status === "pending_approval",
     )!;
-    await demoOutreach.approve(pending.id, pending.text);
+    const productId = readDemoCatalog(id)[0].id;
+    await assert.rejects(
+      demoOutreach.approve(pending.id, pending.text),
+      /Choose an active product/,
+    );
+    const draft = await demoOutreach.preview(pending.message_id, productId);
+    await demoOutreach.approve(pending.id, draft.text, productId);
     simulateClick(pending.id);
     simulateClick(pending.id);
     const after = await demoOutreach.load(id);
@@ -118,7 +125,11 @@ test("one product is saved across channels and isolated demo accounts have disti
     accounts.map((a) => demoOutreach.product(a.id)),
   );
   assert.equal(productsDiffer(products), false);
-  assert.ok(products.every((p) => p?.name === product.name));
+  assert.ok(
+    accounts.every((a) =>
+      readDemoCatalog(a.id).some((p) => p.title === product.name),
+    ),
+  );
   const posts = accounts.flatMap((a) => demoPosts(a.id));
   assert.equal(new Set(posts.map((p) => p.post.id)).size, 16);
   const details = await loadEvidence(
@@ -177,8 +188,13 @@ test("live adapter uses F7/F8 account-scoped read endpoints and correct write me
         ? snapshot.stats
         : path.includes("/tracking/links")
           ? snapshot.links
-          : path.includes("/product")
-            ? snapshot.product
+          : path.includes("/products")
+            ? init?.method === "POST"
+              ? {
+                  ...readDemoCatalog(a.id)[0],
+                  ...JSON.parse(String(init.body)),
+                }
+              : readDemoCatalog(a.id)
             : path.includes("/preview")
               ? {
                   text: "Draft",
@@ -230,9 +246,9 @@ test("live adapter uses F7/F8 account-scoped read endpoints and correct write me
     assert.ok(
       calls.some(
         (c) =>
-          c.url.endsWith("/product") &&
-          c.method === "PUT" &&
-          JSON.stringify(c.body) === JSON.stringify(product),
+          c.url.endsWith("/products") &&
+          c.method === "POST" &&
+          (c.body as { title: string }).title === product.name,
       ),
     );
     assert.deepEqual(calls.find((c) => c.url.endsWith("/approve"))?.body, {
@@ -244,12 +260,12 @@ test("live adapter uses F7/F8 account-scoped read endpoints and correct write me
     globalThis.fetch = original;
   }
 });
-test("product 404 is an empty state; server failures and cross-account data remain errors", async () => {
+test("empty catalogs are empty states; server failures and cross-account data remain errors", async () => {
   const [a] = fresh(),
     original = globalThis.fetch;
   try {
     globalThis.fetch = async () =>
-      new Response(JSON.stringify({ detail: "Not found" }), { status: 404 });
+      new Response(JSON.stringify([]), { status: 200 });
     assert.equal(await liveOutreach.product(a.id), null);
     globalThis.fetch = async () =>
       new Response(JSON.stringify({ detail: "Unavailable" }), { status: 503 });
@@ -264,7 +280,7 @@ test("product 404 is an empty state; server failures and cross-account data rema
               ? other.stats
               : String(url).includes("/links")
                 ? other.links
-                : other.product,
+                : readDemoCatalog(demoAccounts()[1].id),
         ),
         { status: 200 },
       );

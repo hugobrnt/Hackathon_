@@ -1,3 +1,4 @@
+import { readDemoCatalog, writeDemoProduct } from "../products/demo-catalog.ts";
 import { readDemoReplies } from "../../api/replies.ts";
 import type { OutreachSource } from "../../api/outreach";
 import type {
@@ -74,7 +75,10 @@ function seed(account: string): State {
         "rejected",
       ] as const
     )[i];
+    const matched = readDemoCatalog(account).find((p) => p.is_active);
     state.attempts.push({
+      product_id: i === 0 ? null : (matched?.id ?? null),
+      product_title: i === 0 ? null : (matched?.title ?? null),
       id: m.id,
       message_id: m.id,
       account_id: account,
@@ -89,7 +93,7 @@ function seed(account: string): State {
           : status === "skipped"
             ? "The person was already contacted on this post."
             : status === "pending_approval"
-              ? "Human approval is required."
+              ? "Product not identified: choose a product and prepare the reply."
               : null,
       text:
         status === "skipped"
@@ -160,20 +164,30 @@ function findAttempt(id: number) {
   }
   throw new Error("DM not found.");
 }
-function draft(messageId: number): DmDraft {
+function draft(messageId: number, productId?: number): DmDraft {
   const p = allDemoPosts().find((p) =>
     p.comments.some((m) => m.id === messageId),
   );
   if (!p) throw new Error("Comment not found.");
   const m = p.comments.find((m) => m.id === messageId)!,
     s = stateFor(p.post.account_id);
-  if (!s.product) throw new Error("Save your product first.");
+  const catalog = readDemoCatalog(p.post.account_id).filter((v) => v.is_active);
+  const product =
+    catalog.find(
+      (v) =>
+        v.id ===
+        (productId ??
+          s.rules[p.post.id]?.product_id ??
+          m.classification?.product_id),
+    ) ?? (catalog.length === 1 ? catalog[0] : undefined);
+  if (!product)
+    throw new Error("Choose the product before preparing this reply.");
   const code = "demo-" + m.id,
     url = "https://signal.example/r/" + code;
-  if (!s.links.some((l) => l.message_id === m.id)) {
-    const dest = new URL(
-      s.rules[p.post.id]?.landing_url || s.product.landing_url,
-    );
+  {
+    const previous = s.links.find((l) => l.message_id === m.id);
+    s.links = s.links.filter((l) => l.message_id !== m.id);
+    const dest = new URL(product.landing_url);
     for (const [k, v] of Object.entries({
       utm_source: p.post.platform,
       utm_medium: "dm",
@@ -190,8 +204,8 @@ function draft(messageId: number): DmDraft {
       recipient_id: m.author_id,
       intent: m.classification?.intent ?? null,
       destination_url: dest.href,
-      click_count: 0,
-      bot_hits: 0,
+      click_count: previous?.click_count ?? 0,
+      bot_hits: previous?.bot_hits ?? 0,
       first_clicked_at: null,
       last_clicked_at: null,
       created_at: now(),
@@ -208,9 +222,11 @@ function draft(messageId: number): DmDraft {
         : "Learn more on the product page.";
   const text =
     preferences.tone === "concise"
-      ? `${s.product.name}: ${action} ${url}`
-      : `${greeting} ${(m.author_name ?? "there").replace(/[.!]+$/, "")}. ${s.product.description.slice(0, 180)} ${action} ${url}`;
+      ? `${product.title}: ${action} ${url}`
+      : `${greeting} ${(m.author_name ?? "there").replace(/[.!]+$/, "")}. ${product.description.slice(0, 180)} ${action} ${url}`;
   return {
+    product_id: product.id,
+    product_title: product.title,
     text,
     writer: "demo-template",
     tracked_link_code: code,
@@ -219,12 +235,13 @@ function draft(messageId: number): DmDraft {
 }
 export const demoOutreach: OutreachSource = {
   async product(account) {
-    return structuredClone(stateFor(account).product);
+    const p = readDemoCatalog(account).find((p) => p.is_active);
+    return p ? { ...p, name: p.title } : null;
   },
   async load(account): Promise<OutreachSnapshot> {
     const s = stateFor(account);
     return structuredClone({
-      product: s.product,
+      product: await demoOutreach.product(account),
       attempts: s.attempts.map((a) => ({
         ...a,
         link_clicks:
@@ -236,7 +253,15 @@ export const demoOutreach: OutreachSource = {
   },
   async saveProduct(account, input) {
     const s = stateFor(account);
-    s.product = { ...input, account_id: account, updated_at: now() };
+    const old = readDemoCatalog(account).find(
+      (p) => p.landing_url === input.landing_url,
+    );
+    const p = writeDemoProduct(
+      account,
+      { ...input, title: input.name, is_active: true },
+      old?.id,
+    );
+    s.product = { ...input, account_id: account, updated_at: p.updated_at };
     persist(account);
     return structuredClone(s.product);
   },
@@ -256,14 +281,17 @@ export const demoOutreach: OutreachSource = {
   async saveSettings(id, input) {
     const p = demoPost(id),
       s = stateFor(p.post.account_id);
-    if (input.enabled && !s.product)
+    if (
+      input.enabled &&
+      !readDemoCatalog(p.post.account_id).some((v) => v.is_active)
+    )
       throw new Error("Save your product first.");
     s.rules[id] = { ...input, post_id: id, updated_at: now() };
     persist(p.post.account_id);
     return structuredClone(s.rules[id]);
   },
-  async preview(id) {
-    return draft(id);
+  async preview(id, productId) {
+    return draft(id, productId);
   },
   async run(id) {
     const p = demoPost(id),
@@ -301,6 +329,16 @@ export const demoOutreach: OutreachSource = {
           ["sent", "sending", "pending_approval"].includes(a.status),
       );
       const skip = old || duplicate || !m.author_id;
+      const catalog = readDemoCatalog(account).filter((v) => v.is_active);
+      const match =
+        catalog.find(
+          (v) => v.id === (rule.product_id ?? m.classification?.product_id),
+        ) ?? (catalog.length === 1 ? catalog[0] : undefined);
+      const uncertain =
+        !match ||
+        (!rule.product_id &&
+          catalog.length > 1 &&
+          (m.classification.product_confidence ?? 0) < 0.7);
       const status = skip
         ? "skipped"
         : readDemoReplies(p.post.account_id)
@@ -311,13 +349,15 @@ export const demoOutreach: OutreachSource = {
                   m.text.toLowerCase().includes(t.trim().toLowerCase()),
               ) ||
             rule.require_approval ||
+            uncertain ||
             m.classification.needs_review ||
             m.classification.sentiment === "negative"
           ? "pending_approval"
           : "sent";
-      const d = skip
-        ? { text: "", writer: "", tracked_link_code: null, tracked_url: null }
-        : draft(m.id);
+      const d =
+        skip || !match
+          ? { text: "", writer: "", tracked_link_code: null, tracked_url: null }
+          : draft(m.id, match?.id);
       const attempt: DmAttempt = {
         id: m.id,
         message_id: m.id,
@@ -351,12 +391,18 @@ export const demoOutreach: OutreachSource = {
     persist(account);
     return result;
   },
-  async approve(id, text) {
+  async approve(id, text, productId) {
     const { attempt, account } = findAttempt(id);
     if (!canApprove(attempt))
       throw new Error("This DM cannot be sent in its current status.");
     if (!text.trim() || text.length > 1000)
       throw new Error("Use 1–1,000 characters.");
+    const product = readDemoCatalog(account).find(
+      (p) => p.is_active && p.id === (productId ?? attempt.product_id),
+    );
+    if (!product) throw new Error("Choose an active product first.");
+    attempt.product_id = product.id;
+    attempt.product_title = product.title;
     attempt.text = text.trim();
     attempt.status = "sent";
     attempt.reason = null;

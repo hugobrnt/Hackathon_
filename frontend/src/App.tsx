@@ -1,7 +1,7 @@
+import { Products } from "./domains/products/Products";
 import { useEffect, useState, type FormEvent } from "react";
 import { api, request, ApiError } from "./api/client";
 import { AuthForm, type Owner } from "./domains/auth/AuthForm";
-import { parseTimestamp } from "./shared/time";
 import type { DataMode } from "./api/source";
 import type { Intent } from "./api/types";
 import { useWorkspace, useEvidence } from "./domains/accounts/useWorkspace";
@@ -37,6 +37,7 @@ const nav = [
   ["dashboard", "Dashboard"],
   ["posts", "Posts"],
   ["insights", "Insights"],
+  ["products", "Products"],
   ["conversations", "Conversations"],
   ["analytics", "Analytics"],
 ] as const;
@@ -269,10 +270,14 @@ export default function App() {
       setBusy("");
     }
   }
-  function connect(platform: string) {
+  function connect(
+    platform: string,
+    loginMethod?: "instagram_login" | "facebook_login",
+  ) {
     if (mode === "demo") return;
     void perform("Connecting…", async () => {
-      const result = await api.connect(platform),
+      saveStored("signal:connection:pending", platform);
+      const result = await api.connect(platform, loginMethod),
         url = safeExternalUrl(result.auth_url);
       if (!url || !url.startsWith("https://"))
         throw new Error("The API did not return a secure authorization URL.");
@@ -282,9 +287,16 @@ export default function App() {
   }
   function syncAccounts() {
     void perform("Refreshing accounts…", async () => {
-      await api.syncAccounts();
+      const accounts = await api.syncAccounts();
       setRevision((r) => r + 1);
-      setNotice({ text: "Accounts refreshed from Zernio." });
+      setNotice(
+        accounts.length
+          ? { text: `${accounts.length} authorized accounts found in Zernio.` }
+          : {
+              text: "No authorized account found. Complete authorization, try the Facebook option, or connect in Zernio and check again.",
+              error: true,
+            },
+      );
     });
   }
   function importAccount(id: string) {
@@ -348,13 +360,6 @@ export default function App() {
   const intent: Intent | "all" = INTENTS.includes(currentIntent as Intent)
     ? (currentIntent as Intent)
     : "all";
-  const filteredPosts = workspace.posts.filter(
-    (p) =>
-      period === "all" ||
-      (p.post.created_time &&
-        parseTimestamp(p.post.created_time) >=
-          Date.now() - Number(period) * 86400000),
-  );
   const total = aggregate(workspace.posts);
   const rawPost = route.params.get("post"),
     postId = rawPost && /^\d+$/.test(rawPost) ? Number(rawPost) : null;
@@ -461,21 +466,6 @@ export default function App() {
         <a className="wordmark" href="#/dashboard">
           signal
         </a>
-        {mode === "live" && owner && (
-          <button
-            className="text-link small"
-            onClick={() =>
-              void request("/auth/logout", { method: "POST" })
-                .then(() => {
-                  setOwner(null);
-                  navigate("landing", {}, false);
-                })
-                .catch((e) => setNotice({ text: e.message, error: true }))
-            }
-          >
-            Sign out
-          </button>
-        )}
         <nav aria-label="Main navigation">
           {nav.map(([id, label]) => (
             <button
@@ -484,7 +474,7 @@ export default function App() {
               aria-current={route.view === id ? "page" : undefined}
               onClick={() => navigate(id)}
             >
-              <Icon name={id} />
+              <Icon name={id === "products" ? "posts" : id} />
               {label}
               {id === "conversations" && mode === "demo" && (
                 <span className="nav-tag">Demo</span>
@@ -574,6 +564,21 @@ export default function App() {
               </small>
             </span>
           </div>
+          {mode === "live" && owner && (
+            <button
+              className="sidebar-signout"
+              onClick={() =>
+                void request("/auth/logout", { method: "POST" })
+                  .then(() => {
+                    setOwner(null);
+                    navigate("landing", {}, false);
+                  })
+                  .catch((e) => setNotice({ text: e.message, error: true }))
+              }
+            >
+              Sign out
+            </button>
+          )}
         </div>
       </aside>
       <div className="workspace">
@@ -604,10 +609,9 @@ export default function App() {
               </button>
             )}
           </form>
-          <span className={"pill " + (mode === "demo" ? "pill--demo" : "")}>
-            {mode === "demo" ? "Demo" : "Connected"}
-          </span>
+          {mode === "demo" && <span className="pill pill--demo">Demo</span>}
           <Button
+            className="topbar-settings"
             aria-label="Brand settings"
             onClick={() => navigate("profile")}
           >
@@ -633,7 +637,9 @@ export default function App() {
               <div>
                 <div className="brand-title">
                   <h2>{displayName}</h2>
-                  {["insights", "posts"].includes(route.view) ? (
+                  {["insights", "posts", "products", "dashboard"].includes(
+                    route.view,
+                  ) ? (
                     <span className="pill">
                       All channels · {workspace.accounts.length}
                     </span>
@@ -658,7 +664,7 @@ export default function App() {
               </div>
             </div>
             <div className="brand-controls">
-              {["dashboard", "posts"].includes(route.view) && (
+              {["posts"].includes(route.view) && (
                 <label className="filter">
                   <Icon name="calendar" />
                   <select
@@ -722,6 +728,8 @@ export default function App() {
               onDemo={beginDemo}
               onHome={() => navigate("dashboard")}
             />
+          ) : route.view === "products" ? (
+            <Products mode={mode} accounts={workspace.accounts} />
           ) : route.view === "profile" ? (
             <Profile key={profileKey} initial={profile} onSave={saveProfile} />
           ) : route.view === "data" ? (
@@ -807,7 +815,13 @@ export default function App() {
               Import an account’s posts and comments to unlock your dashboard.
             </Empty>
           ) : !workspace.posts.length &&
-            !["conversations", "insights", "posts"].includes(route.view) ? (
+            ![
+              "conversations",
+              "insights",
+              "posts",
+              "dashboard",
+              "products",
+            ].includes(route.view) ? (
             <Empty
               title="No posts imported yet"
               action={
@@ -825,17 +839,13 @@ export default function App() {
             </Empty>
           ) : route.view === "dashboard" ? (
             <Dashboard
-              posts={filteredPosts}
-              onOpen={openPost}
-              onInsight={(i) =>
-                navigate("insights", {
-                  intent: i,
-                  channel: account?.id ?? "all",
-                })
+              mode={mode}
+              accounts={workspace.accounts}
+              revision={revision}
+              onOpen={(id, accountId) =>
+                navigate("dashboard", { post: String(id), account: accountId })
               }
-              onPosts={() =>
-                navigate("posts", account ? { channel: account.id } : {})
-              }
+              onNavigate={navigate}
             />
           ) : route.view === "posts" ? (
             <BrandPosts
@@ -897,6 +907,7 @@ export default function App() {
               accountId={account.id}
               accounts={workspace.accounts}
               posts={workspace.posts}
+              onProducts={() => navigate("products")}
               onPosts={() => navigate("posts")}
               onOpen={openPost}
               initialTab={route.params.get("tab") ?? "inbox"}

@@ -38,7 +38,8 @@ export function Landing({
           </h1>
           <p>
             Find your strongest posts, understand what makes people buy, and
-            start the conversations that bring them to your product.
+            route interested people to the right product with a personalized
+            reply.
           </p>
           <div className="actions">
             <Button primary onClick={onDemo}>
@@ -110,7 +111,7 @@ export function Landing({
               [
                 "conversations",
                 "Activate your community",
-                "Follow up on eligible comments with personalized DMs. Guide interested people to your product and track their clicks.",
+                "Match each request to a product and send a relevant DM. Review uncertain matches, then track clicks to the right page.",
               ],
             ].map(([icon, title, text]) => (
               <article className="panel" key={title}>
@@ -138,7 +139,7 @@ export function Landing({
               [
                 "03",
                 "Start the right conversation",
-                "Use your product context to prepare DMs, review them, and follow the clicks they generate.",
+                "Add your product catalog. Signal identifies the intent and product, prepares the right reply, and asks you when uncertain.",
               ],
             ].map(([n, t, s]) => (
               <article key={n}>

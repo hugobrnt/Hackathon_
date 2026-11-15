@@ -1,5 +1,5 @@
 import type { ButtonHTMLAttributes, ReactNode } from "react";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { safeExternalUrl } from "./storage";
 export function Icon({ name }: { name: string }) {
   return (
@@ -24,6 +24,43 @@ export function Button({
     </button>
   );
 }
+export function InfoTip({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const id = useId();
+  return (
+    <span
+      className="info-tip"
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+    >
+      <button
+        type="button"
+        aria-label={label}
+        aria-describedby={open ? id : undefined}
+        aria-expanded={open}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setOpen(false)}
+        onClick={() => setOpen(true)}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") setOpen(false);
+        }}
+      >
+        <Icon name="help" />
+      </button>
+      {open && (
+        <span role="tooltip" id={id}>
+          {children}
+        </span>
+      )}
+    </span>
+  );
+}
 export function Metric({
   label,
   value,
@@ -42,10 +79,7 @@ export function Metric({
       <span className="metric-label">
         {label}
         {definition && (
-          <span tabIndex={0} className="tooltip" aria-label={definition}>
-            <Icon name="help" />
-            <span role="tooltip">{definition}</span>
-          </span>
+          <InfoTip label={label + " calculation"}>{definition}</InfoTip>
         )}
       </span>
       <strong>{value}</strong>

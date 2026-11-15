@@ -1,3 +1,4 @@
+import type { CatalogProduct } from "../products/types";
 import { useEffect, useState } from "react";
 import type { DataMode } from "../../api/source";
 import { sourceFor } from "../../api/source";
@@ -6,34 +7,29 @@ import type {
   AutoDmSettings,
   AutoDmInput,
   DmDraft,
-  ProductInput,
-  Product,
 } from "../../api/outreach-types";
 import { outreachFor } from "../../api/outreach";
-import { saveBrandProduct } from "./brand-product";
 import { ReplyPreferencesForm } from "./ReplyPreferencesForm";
-import { ProductForm } from "./ProductForm";
 import type { ActionConfirmation } from "./ConfirmAction";
 import { Button } from "../../shared/ui";
-import { safeExternalUrl } from "../../shared/storage";
 import { intentLabels } from "../analytics/model";
 export function Automation({
   mode,
   account,
   accounts,
-  mismatch,
   posts,
-  product,
+  products,
   busy,
   perform,
   confirm,
+  onProducts,
 }: {
   mode: DataMode;
   account: string;
   accounts: string[];
-  mismatch: boolean;
   posts: PostIntentStats[];
-  product: Product | null;
+  products: CatalogProduct[];
+  onProducts: () => void;
   busy: boolean;
   perform: (action: () => Promise<string>) => Promise<void>;
   confirm: (a: ActionConfirmation) => void;
@@ -66,12 +62,6 @@ export function Automation({
       });
     return () => c.abort();
   }, [postId, source, mode, account, refresh]);
-  function saveProduct(input: ProductInput) {
-    void perform(async () => {
-      const count = await saveBrandProduct(source, accounts, input);
-      return "Product saved across " + count + " channels.";
-    });
-  }
   return (
     <>
       <ReplyPreferencesForm
@@ -83,19 +73,16 @@ export function Automation({
       />
       <div className="automation-grid">
         <section className="panel">
-          <h2>Your offer</h2>
-          {mismatch && (
-            <p className="notice">
-              Product settings differ across channels. Save once to sync them.
-            </p>
-          )}
-          <ProductForm
-            key={product?.updated_at ?? "new"}
-            product={product}
-            busy={busy}
-            onSave={saveProduct}
-            demo={mode === "demo"}
-          />
+          <h2>Product routing</h2>
+          <p className="muted">
+            Each comment is matched to an active product. Uncertain matches wait
+            for your review.
+          </p>
+          <p>
+            {products.filter((p) => p.is_active).length} active products on this
+            channel
+          </p>
+          <Button onClick={onProducts}>Manage products →</Button>
         </section>
         <section className="panel">
           <h2>Drafts or automatic replies</h2>
@@ -127,7 +114,7 @@ export function Automation({
               mode={mode}
               rule={rule}
               detail={detail}
-              product={!!product}
+              products={products.filter((p) => p.is_active)}
               busy={busy}
               perform={perform}
               confirm={confirm}
@@ -145,7 +132,7 @@ function PostRules({
   mode,
   rule,
   detail,
-  product,
+  products,
   busy,
   perform,
   confirm,
@@ -154,7 +141,7 @@ function PostRules({
   mode: DataMode;
   rule: AutoDmSettings;
   detail: PostDetail;
-  product: boolean;
+  products: CatalogProduct[];
   busy: boolean;
   perform: (a: () => Promise<string>) => Promise<void>;
   confirm: (a: ActionConfirmation) => void;
@@ -163,7 +150,8 @@ function PostRules({
   const source = outreachFor(mode),
     [form, setForm] = useState<AutoDmInput>({
       enabled: rule.enabled,
-      landing_url: rule.landing_url,
+      product_id: rule.product_id ?? null,
+      public_reply: rule.public_reply ?? false,
       require_approval: rule.enabled ? rule.require_approval : true,
     }),
     [error, setError] = useState(""),
@@ -180,13 +168,10 @@ function PostRules({
   const [messageId, setMessageId] = useState(candidates[0]?.id ?? 0);
   const dirty =
     form.enabled !== rule.enabled ||
-    form.landing_url !== rule.landing_url ||
+    form.product_id !== (rule.product_id ?? null) ||
+    form.public_reply !== (rule.public_reply ?? false) ||
     form.require_approval !== rule.require_approval;
   function save() {
-    if (form.landing_url && !safeExternalUrl(form.landing_url)) {
-      setError("Use a complete http:// or https:// URL.");
-      return;
-    }
     setError("");
     const action = async () => {
       await perform(async () => {
@@ -259,7 +244,7 @@ function PostRules({
         <input
           type="checkbox"
           checked={form.enabled}
-          disabled={busy || !product}
+          disabled={busy || !products.length}
           onChange={(e) => setForm({ ...form, enabled: e.target.checked })}
         />
       </label>
@@ -278,18 +263,39 @@ function PostRules({
         />
       </label>
       <label className="field">
-        Link override · optional
-        <input
-          type="url"
+        Product selection
+        <select
           disabled={busy}
-          value={form.landing_url ?? ""}
+          value={form.product_id ?? "auto"}
           onChange={(e) =>
-            setForm({ ...form, landing_url: e.target.value || null })
+            setForm({
+              ...form,
+              product_id:
+                e.target.value === "auto" ? null : Number(e.target.value),
+            })
           }
-          placeholder="Uses your product page by default"
+        >
+          <option value="auto">Automatic · match each comment</option>
+          {products.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.title}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="toggle-row">
+        <span>
+          <strong>Reply under the comment</strong>
+          <small>Post a public reply after the DM is sent</small>
+        </span>
+        <input
+          type="checkbox"
+          checked={form.public_reply ?? false}
+          disabled={busy}
+          onChange={(e) => setForm({ ...form, public_reply: e.target.checked })}
         />
       </label>
-      {!product && (
+      {!products.length && (
         <p className="notice">Save the product before enabling Auto-DM.</p>
       )}
       {error && (
@@ -302,7 +308,7 @@ function PostRules({
           Save rules
         </Button>
         <Button
-          disabled={busy || !rule.enabled || dirty || !product}
+          disabled={busy || !rule.enabled || dirty || !products.length}
           onClick={run}
         >
           {mode === "demo"
@@ -341,10 +347,13 @@ function PostRules({
         </select>
       </label>
       <Button
-        disabled={busy || !product || !messageId}
+        disabled={busy || !products.length || !messageId}
         onClick={() =>
           void perform(async () => {
-            const d = await source.preview(messageId);
+            const d = await source.preview(
+              messageId,
+              form.product_id ?? undefined,
+            );
             setPreview(d);
             return "Preview generated. No message sent.";
           })

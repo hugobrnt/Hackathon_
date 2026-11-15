@@ -221,3 +221,160 @@
     font-size: 17px;
   }
 }
+.overview-heading {
+  align-items: flex-start;
+}
+.overview-heading h1 {
+  margin-bottom: 8px;
+}
+.overview-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: end;
+}
+.overview-filters label {
+  display: grid;
+  gap: 6px;
+  font-size: 11px;
+  color: #777;
+}
+.overview-filters select,
+.overview-filters input {
+  font-size: 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px;
+  background: #fff;
+  color: #222;
+  max-width: 210px;
+}
+.overview-period {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  font-size: 13px;
+}
+.overview-period span {
+  color: #777;
+}
+.overview-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+.overview-kpis .metric {
+  min-width: 0;
+}
+.overview-columns {
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+}
+.overview-trend {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 25px 0 15px;
+  text-align: center;
+}
+.overview-trend > div {
+  display: grid;
+  gap: 8px;
+  font-size: 12px;
+}
+.overview-trend small {
+  color: #777;
+  font-size: 10px;
+}
+.trend-track {
+  height: 100px;
+  background: #f8f8f8;
+  display: flex;
+  align-items: end;
+  border-radius: 5px;
+  overflow: hidden;
+}
+.trend-track > span {
+  display: block;
+  width: 100%;
+  background: #426def;
+}
+.overview-product-table th,
+.overview-product-table td {
+  padding: 14px 8px;
+  font-size: 12px;
+}
+.overview-product-table td small {
+  font-size: 10px;
+}
+.overview-actions {
+  display: grid;
+}
+.overview-actions button {
+  padding: 18px 0;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+.overview-actions button:last-child {
+  border-bottom: 0;
+}
+.overview-actions strong {
+  display: flex;
+  justify-content: space-between;
+  font-size: 14px;
+  gap: 10px;
+}
+.overview-actions small {
+  display: block;
+  color: #777;
+  font-size: 12px;
+  line-height: 1.6;
+  margin-top: 7px;
+}
+.overview-actions button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.overview-coverage {
+  font-size: 12px;
+  color: #777;
+  line-height: 1.6;
+}
+.overview-coverage summary {
+  cursor: pointer;
+}
+.overview-coverage p {
+  max-width: 950px;
+  margin: 10px 0;
+}
+@media (max-width: 1100px) {
+  .overview-heading {
+    flex-direction: column;
+  }
+  .overview-columns {
+    grid-template-columns: 1fr;
+  }
+  .overview-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 600px) {
+  .overview-kpis {
+    grid-template-columns: 1fr 1fr;
+  }
+  .overview-filters {
+    width: 100%;
+  }
+  .overview-filters label:first-child {
+    flex-basis: 100%;
+  }
+  .overview-filters select {
+    max-width: none;
+  }
+  .overview-trend {
+    gap: 6px;
+  }
+  .overview-trend small {
+    font-size: 9px;
+  }
+}

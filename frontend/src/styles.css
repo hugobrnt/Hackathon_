@@ -2022,9 +2022,6 @@ tbody td small {
     gap: 9px;
     height: 63px;
   }
-  .topbar > .btn:last-child {
-    display: none;
-  }
   .topbar > .pill {
     font-size: 9px;
   }
@@ -3711,4 +3708,127 @@ tbody td small {
   font-size: 15px;
   letter-spacing: -0.2px;
   margin: 22px 0 12px;
+}
+.connection-help {
+  margin: 20px 0;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+}
+.connection-help summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.connection-help p {
+  color: #666;
+  line-height: 1.6;
+  margin: 12px 0;
+}
+.connection-help small {
+  display: block;
+  color: #777;
+  margin-top: 12px;
+  line-height: 1.6;
+}
+.verified-channel-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.post-content-block {
+  padding: 0 0 22px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+}
+.post-content-block h3 {
+  font-size: 12px;
+  font-weight: 600;
+  color: #777;
+  margin: 0 0 10px;
+}
+.post-content-block .post-caption {
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.75;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: #333;
+  margin: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 6;
+  overflow: hidden;
+}
+.post-content-block .post-caption.expanded {
+  display: block;
+}
+.post-content-block .text-link {
+  margin-top: 10px;
+  font-size: 12px;
+}
+.detail-metric-period {
+  margin-bottom: 10px;
+}
+
+.topbar-settings {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.sidebar-bottom > .sidebar-signout {
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+  color: #666;
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.info-tip {
+  display: inline-flex;
+  position: relative;
+  flex-shrink: 0;
+}
+.info-tip > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  color: #777;
+  border-radius: 50%;
+}
+.info-tip > button:hover,
+.info-tip > button:focus-visible {
+  background: #f0f2f6;
+}
+.info-tip .icon {
+  width: 15px;
+  height: 15px;
+  opacity: 0.65;
+}
+.info-tip [role="tooltip"] {
+  position: absolute;
+  top: 30px;
+  right: 0;
+  width: min(280px, 70vw);
+  z-index: 40;
+  padding: 13px;
+  background: #222;
+  color: white;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.55;
+  border-radius: 7px;
+  box-shadow: 0 6px 25px #0002;
+}
+.overview-panel-heading {
+  position: relative;
+  padding-right: 34px;
+}
+.overview-panel-heading > .info-tip {
+  position: absolute;
+  top: 0;
+  right: 0;
 }

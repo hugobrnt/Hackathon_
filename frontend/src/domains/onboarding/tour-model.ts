@@ -27,8 +27,8 @@ export const tourSteps: {
   {
     view: "insights",
     target: "insights-channels",
-    label: "One product. Every channel.",
-    text: "Insights combine your channels. Use this filter or expand the breakdown to isolate a channel.",
+    label: "Your products. Every channel.",
+    text: "Choose a product on the left. Use the channel filter to see feedback from one network.",
     next: "Find a product request",
   },
   {
@@ -44,7 +44,7 @@ export const tourSteps: {
     tab: "inbox",
     target: "dm-send",
     label: "Turn intent into a conversation",
-    text: "Read the draft, then click Simulate send. No real message leaves this demo.",
+    text: "Choose the product, prepare its reply, then click Simulate send. No real message leaves this demo.",
     next: "Follow the link",
     action: "dm-sent",
   },

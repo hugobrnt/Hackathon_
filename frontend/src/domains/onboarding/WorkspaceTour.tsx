@@ -22,6 +22,7 @@ export function WorkspaceTour({
 }) {
   const reduce = useReducedMotion(),
     s = tourSteps[step];
+  const [followup, setFollowup] = useState(false);
   const [box, setBox] = useState<Box | null>(null);
   const [size, setSize] = useState({
     width: window.innerWidth,
@@ -59,10 +60,20 @@ export function WorkspaceTour({
       frame = 0;
       setSize({ width: window.innerWidth, height: window.innerHeight });
       setDialogOpen(!!document.querySelector("dialog[open]"));
-      const found =
+      let found =
         view === s.view
           ? document.querySelector<HTMLElement>(`[data-tour="${s.target}"]`)
           : null;
+      const nextTarget = found?.dataset.tourNext;
+      if (nextTarget)
+        found =
+          document.querySelector<HTMLElement>(`[data-tour="${nextTarget}"]`) ??
+          found;
+      if (s.target === "dm-send" && found?.hasAttribute("disabled"))
+        found =
+          document.querySelector<HTMLElement>('[data-tour="dm-product"]') ??
+          found;
+      setFollowup(!!nextTarget);
       if (found !== target) {
         if (target) resize.unobserve(target);
         target = found;
@@ -94,7 +105,7 @@ export function WorkspaceTour({
       childList: true,
       subtree: true,
       attributes: true,
-      attributeFilter: ["open", "data-tour"],
+      attributeFilter: ["open", "data-tour", "data-tour-next", "disabled"],
     });
     const reposition = () => {
       target?.scrollIntoView({
@@ -197,7 +208,11 @@ export function WorkspaceTour({
             <h2 ref={title} tabIndex={-1}>
               {s.label}
             </h2>
-            <p>{s.text}</p>
+            <p>
+              {followup
+                ? "Open the highlighted feature request to read the comments behind it."
+                : s.text}
+            </p>
             {s.action && (
               <div className="guided-tour-feedback" role="status">
                 {completed

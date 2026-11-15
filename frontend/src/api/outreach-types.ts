@@ -1,6 +1,11 @@
 import type { Intent } from "./types";
 export type DmStatus =
-  "pending_approval" | "sending" | "sent" | "failed" | "skipped" | "rejected";
+  | "pending_approval"
+  | "sending"
+  | "sent"
+  | "failed"
+  | "skipped"
+  | "rejected";
 export interface ProductInput {
   business_type: "saas" | "ecommerce";
   name: string;
@@ -13,7 +18,9 @@ export interface Product extends ProductInput {
 }
 export interface AutoDmInput {
   enabled: boolean;
-  landing_url: string | null;
+  landing_url?: string | null;
+  product_id?: number | null;
+  public_reply?: boolean;
   require_approval: boolean;
 }
 export interface AutoDmSettings extends AutoDmInput {
@@ -21,12 +28,16 @@ export interface AutoDmSettings extends AutoDmInput {
   updated_at: string;
 }
 export interface DmDraft {
+  product_id?: number | null;
+  product_title?: string | null;
   text: string;
   writer: string;
   tracked_link_code: string | null;
   tracked_url: string | null;
 }
 export interface DmAttempt {
+  product_id?: number | null;
+  product_title?: string | null;
   id: number;
   message_id: number;
   account_id: string;

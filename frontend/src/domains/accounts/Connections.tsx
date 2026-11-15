@@ -1,3 +1,4 @@
+import { ConnectionFallback } from "./ConnectionFallback";
 import type { SocialAccount } from "../../api/types";
 import type { DataMode } from "../../api/source";
 import { Button, Empty, Heading } from "../../shared/ui";
@@ -18,7 +19,7 @@ export function Connections({
   mode: DataMode;
   accounts: SocialAccount[];
   busy: boolean;
-  onConnect: (p: string) => void;
+  onConnect: (p: string, method?: "instagram_login" | "facebook_login") => void;
   onSync: () => void;
   onImport: (id: string) => void;
   onDemo: () => void;
@@ -44,7 +45,6 @@ export function Connections({
       )}
       <div className="networks-grid">
         {PLATFORMS.map(([key, name]) => {
-          const connected = accounts.filter((a) => a.platform === key);
           return (
             <button
               className="network-card"
@@ -62,16 +62,19 @@ export function Connections({
             >
               <PlatformBadge platform={key} />
               <strong>{name}</strong>
-              <span className="network-plus">
-                {connected.length ? "✓" : "+"}
-              </span>
-              <small>
-                {connected.length ? "Account connected" : "Connect account"}
-              </small>
+              <span className="network-plus">+</span>
+              <small>Connect account</small>
             </button>
           );
         })}
       </div>
+      {mode === "live" && (
+        <ConnectionFallback
+          busy={busy}
+          onInstagram={() => onConnect("instagram", "facebook_login")}
+          onRefresh={onSync}
+        />
+      )}
       <section className="panel">
         <h2>Your accounts</h2>
         {!accounts.length ? (

@@ -1,4 +1,5 @@
-import { request, ApiError } from "./client.ts";
+import { catalogFor } from "../domains/products/api.ts";
+import { request } from "./client.ts";
 import type {
   AutoDmInput,
   AutoDmSettings,
@@ -19,32 +20,25 @@ export interface OutreachSource {
   saveProduct(account: string, input: ProductInput): Promise<Product>;
   settings(post: number, signal?: AbortSignal): Promise<AutoDmSettings>;
   saveSettings(post: number, input: AutoDmInput): Promise<AutoDmSettings>;
-  preview(message: number): Promise<DmDraft>;
+  preview(message: number, productId?: number): Promise<DmDraft>;
   run(post: number): Promise<DmRun>;
-  approve(id: number, text: string): Promise<DmAttempt>;
+  approve(id: number, text: string, productId?: number): Promise<DmAttempt>;
   reject(id: number): Promise<DmAttempt>;
 }
 const longTimeout = () => AbortSignal.timeout(180000);
 export const liveOutreach: OutreachSource = {
-  product: (account, signal) =>
-    request<Product>("/accounts/" + encodeURIComponent(account) + "/product", {
-      signal,
-    }).catch((e) => {
-      if (e instanceof ApiError && e.status === 404) return null;
-      throw e;
-    }),
+  async product(account, signal) {
+    const p = (await catalogFor("live").list(account, signal)).find(
+      (p) => p.is_active,
+    );
+    return p ? { ...p, name: p.title } : null;
+  },
 
   async load(account, signal) {
     const q = "?account_id=" + encodeURIComponent(account);
     const [attempts, product, links, stats] = await Promise.all([
       request<DmAttempt[]>("/auto-dm/attempts" + q + "&limit=500", { signal }),
-      request<Product>(
-        "/accounts/" + encodeURIComponent(account) + "/product",
-        { signal },
-      ).catch((e) => {
-        if (e instanceof ApiError && e.status === 404) return null;
-        throw e;
-      }),
+      liveOutreach.product(account, signal),
       request<TrackedLink[]>("/tracking/links" + q, { signal }),
       request<TrackingStats>("/tracking/stats" + q, { signal }),
     ]);
@@ -56,11 +50,23 @@ export const liveOutreach: OutreachSource = {
       throw new Error("Account mismatch in API response.");
     return { attempts, product, links, stats };
   },
-  saveProduct: (account, input) =>
-    request<Product>("/accounts/" + encodeURIComponent(account) + "/product", {
-      method: "PUT",
-      body: JSON.stringify(input),
-    }),
+  async saveProduct(account, input) {
+    const source = catalogFor("live"),
+      all = await source.list(account);
+    const old = all.find((p) => p.landing_url === input.landing_url);
+    const p = await source.save(
+      account,
+      {
+        business_type: input.business_type,
+        title: input.name,
+        landing_url: input.landing_url,
+        description: input.description,
+        is_active: true,
+      },
+      old?.id,
+    );
+    return { ...p, name: p.title };
+  },
   settings: (post, signal) =>
     request<AutoDmSettings>("/posts/" + post + "/auto-dm", { signal }),
   saveSettings: (post, input) =>
@@ -68,20 +74,26 @@ export const liveOutreach: OutreachSource = {
       method: "PUT",
       body: JSON.stringify(input),
     }),
-  preview: (message) =>
-    request<DmDraft>("/messages/" + message + "/auto-dm/preview", {
-      method: "POST",
-      signal: longTimeout(),
-    }),
+  preview: (message, productId) =>
+    request<DmDraft>(
+      "/messages/" +
+        message +
+        "/auto-dm/preview" +
+        (productId ? "?product_id=" + productId : ""),
+      {
+        method: "POST",
+        signal: longTimeout(),
+      },
+    ),
   run: (post) =>
     request<DmRun>("/posts/" + post + "/auto-dm/run", {
       method: "POST",
       signal: longTimeout(),
     }),
-  approve: (id, text) =>
+  approve: (id, text, productId) =>
     request<DmAttempt>("/auto-dm/attempts/" + id + "/approve", {
       method: "POST",
-      body: JSON.stringify({ text }),
+      body: JSON.stringify({ text, product_id: productId }),
       signal: longTimeout(),
     }),
   reject: (id) =>

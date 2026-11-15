@@ -13,7 +13,6 @@ import { BoostDialog } from "./BoostDialog";
 
 export const sortLabels: Partial<Record<PostSortKey, string>> = {
   purchase_intent_rate: "Purchase intent rate",
-  buying_signal_rate: "Buying signals",
   comments: "Audience comments",
   recent: "Most recent",
 };

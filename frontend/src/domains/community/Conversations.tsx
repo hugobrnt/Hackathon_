@@ -1,8 +1,10 @@
+import { catalogFor } from "../products/api";
+import type { CatalogProduct } from "../products/types";
+import "../products/products.css";
 import { reportTourAction } from "../onboarding/tour-model";
 import { useEffect, useRef, useState } from "react";
 import type { DataMode } from "../../api/source";
 import { sourceFor } from "../../api/source";
-import { productsDiffer } from "./brand-product";
 import type { PostIntentStats, SocialAccount } from "../../api/types";
 import type {
   DmAttempt,
@@ -25,6 +27,7 @@ export function Conversations({
   accounts,
   posts,
   onPosts,
+  onProducts,
   onOpen,
   initialTab = "inbox",
 }: {
@@ -33,6 +36,7 @@ export function Conversations({
   accounts: SocialAccount[];
   posts: PostIntentStats[];
   onPosts: () => void;
+  onProducts: () => void;
   onOpen: (id: number) => void;
   initialTab?: string;
 }) {
@@ -43,7 +47,7 @@ export function Conversations({
         : "inbox",
     ),
     [data, setData] = useState<OutreachSnapshot | null>(null),
-    [productMismatch, setProductMismatch] = useState(false),
+    [catalog, setCatalog] = useState<CatalogProduct[]>([]),
     [loadError, setLoadError] = useState(""),
     [loading, setLoading] = useState(true),
     [busy, setBusy] = useState(false),
@@ -81,18 +85,15 @@ export function Conversations({
       try {
         const [result, products] = await Promise.all([
           source.load(accountId, c.signal),
-          Promise.all(accounts.map((a) => source.product(a.id, c.signal))),
+          catalogFor(mode).list(accountId, c.signal),
         ]);
         if (
           !c.signal.aborted &&
           alive.current &&
           seq === requestSequence.current
         ) {
-          setData({
-            ...result,
-            product: products.find((p) => p !== null) ?? null,
-          });
-          setProductMismatch(productsDiffer(products));
+          setData(result);
+          setCatalog(products.filter((p) => p.is_active));
           setLoadError("");
         }
       } catch (e) {
@@ -283,9 +284,9 @@ export function Conversations({
             mode={mode}
             account={accountId}
             accounts={accounts.map((a) => a.id)}
-            mismatch={productMismatch}
             posts={posts}
-            product={data.product}
+            products={catalog}
+            onProducts={onProducts}
             busy={busy}
             perform={perform}
             confirm={ask}
@@ -488,7 +489,9 @@ export function Conversations({
                       </span>
                       <p>{a.text || a.reason || "No message text"}</p>
                       <small>
-                        {intentLabels[a.intent]} · {a.link_clicks} clicks
+                        {intentLabels[a.intent]} ·{" "}
+                        {a.product_title ?? "Product to confirm"} ·{" "}
+                        {a.link_clicks} clicks
                       </small>
                     </button>
                   ))}
@@ -496,6 +499,7 @@ export function Conversations({
                 <AttemptPanel
                   key={active.id + ":" + active.status + ":" + active.text}
                   attempt={active}
+                  products={catalog}
                   link={data.links.find(
                     (l) => l.message_id === active.message_id,
                   )}
@@ -505,7 +509,7 @@ export function Conversations({
                   postLabel={postLabel(active.post_id)}
                   busy={busy}
                   onOpen={onOpen}
-                  approve={(text) =>
+                  approve={(text, productId) =>
                     ask({
                       title: "Send this DM?",
                       body: (
@@ -531,7 +535,11 @@ export function Conversations({
                       action: async () => {
                         await perform(async () => {
                           setSelected(active.id);
-                          const a = await source.approve(active.id, text);
+                          const a = await source.approve(
+                            active.id,
+                            text,
+                            productId,
+                          );
                           if (mode === "demo" && a.status === "sent")
                             reportTourAction("dm-sent");
                           return a.status === "sent"
@@ -583,6 +591,7 @@ export function Conversations({
 }
 function AttemptPanel({
   attempt: a,
+  products,
   link,
   mode,
   account,
@@ -595,6 +604,7 @@ function AttemptPanel({
   click,
 }: {
   attempt: DmAttempt;
+  products: CatalogProduct[];
   link: TrackedLink | undefined;
   mode: DataMode;
   account: string;
@@ -602,13 +612,34 @@ function AttemptPanel({
   postLabel: string;
   busy: boolean;
   onOpen: (id: number) => void;
-  approve: (text: string) => void;
+  approve: (text: string, productId?: number) => void;
   reject: () => void;
   click: () => void;
 }) {
   const [text, setText] = useState(a.text),
     [copyStatus, setCopyStatus] = useState("");
+  const [productId, setProductId] = useState(a.product_id ?? 0),
+    [draftProduct, setDraftProduct] = useState(a.product_id ?? 0),
+    [generating, setGenerating] = useState(false),
+    [previewError, setPreviewError] = useState("");
+  const selectedProduct = products.find((p) => p.id === productId);
   const actionable = canApprove(a);
+  async function regenerate() {
+    setGenerating(true);
+    setPreviewError("");
+    try {
+      const draft = await outreachFor(mode).preview(a.message_id, productId);
+      setText(draft.text);
+      setDraftProduct(productId);
+    } catch (e) {
+      setPreviewError(
+        e instanceof Error ? e.message : "Unable to prepare reply.",
+      );
+    } finally {
+      setGenerating(false);
+    }
+  }
+
   async function copy() {
     try {
       await navigator.clipboard.writeText(
@@ -652,6 +683,44 @@ function AttemptPanel({
           {a.reason}
         </p>
       )}
+      <div className="product-routing" data-tour="dm-product">
+        {actionable ? (
+          <>
+            <label className="field">
+              Product to recommend
+              <select
+                value={productId}
+                disabled={busy || generating}
+                onChange={(e) => setProductId(Number(e.target.value))}
+              >
+                <option value={0}>Choose a product</option>
+                {products.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.title}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {selectedProduct && (
+              <p>Destination: {selectedProduct.landing_url}</p>
+            )}
+            {(productId !== draftProduct || !text) && (
+              <Button
+                disabled={!productId || busy || generating}
+                onClick={() => void regenerate()}
+              >
+                {generating ? "Preparing…" : "Prepare reply for this product"}
+              </Button>
+            )}
+            {previewError && <p role="alert">{previewError}</p>}
+          </>
+        ) : (
+          <>
+            <strong>{a.product_title ?? "Product not recorded"}</strong>
+            {selectedProduct && <p>{selectedProduct.landing_url}</p>}
+          </>
+        )}
+      </div>
       {actionable ? (
         <label className="field">
           Message to send
@@ -689,8 +758,15 @@ function AttemptPanel({
           <Button
             primary
             data-tour="dm-send"
-            disabled={busy || !text.trim() || text.length > 1000}
-            onClick={() => approve(text.trim())}
+            disabled={
+              busy ||
+              generating ||
+              !productId ||
+              productId !== draftProduct ||
+              !text.trim() ||
+              text.length > 1000
+            }
+            onClick={() => approve(text.trim(), productId)}
           >
             {mode === "demo"
               ? "Simulate send"

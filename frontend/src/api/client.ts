@@ -51,13 +51,18 @@ export async function request<T>(
   return response.json() as Promise<T>;
 }
 export const api = {
-  syncAccounts: () =>
-    request<SocialAccount[]>("/accounts/sync", { method: "POST" }),
+  syncAccounts: (signal?: AbortSignal) =>
+    request<SocialAccount[]>("/accounts/sync", { method: "POST", signal }),
   listAccounts: (sync = false, signal?: AbortSignal) =>
     request<SocialAccount[]>("/accounts?sync=" + sync, { signal }),
-  connect: (platform: string) =>
+  connect: (
+    platform: string,
+    loginMethod?: "instagram_login" | "facebook_login",
+  ) =>
     request<{ auth_url: string }>(
-      "/accounts/connect/" + encodeURIComponent(platform),
+      "/accounts/connect/" +
+        encodeURIComponent(platform) +
+        (loginMethod ? "?login_method=" + loginMethod : ""),
       { method: "POST" },
     ),
   importAccount: (id: string) =>

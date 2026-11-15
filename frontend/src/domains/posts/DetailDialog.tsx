@@ -39,6 +39,16 @@ export function Comment({ message }: { message: Message }) {
         <time>{formatDate(message.created_time)}</time>
       </header>
       <p>{message.text}</p>
+      {c && c.intent !== "neutral_spam" && (
+        <p className="small">
+          <strong>Product: {c.product_title ?? "To confirm"}</strong>
+          {c.product_confidence != null &&
+            ` · ${Math.round(c.product_confidence * 100)}% match confidence`}
+          {c.product_confidence != null &&
+            c.product_confidence < 0.7 &&
+            " · Human review required"}
+        </p>
+      )}
       {c && (
         <small>
           {c.sentiment} · {Math.round(c.confidence * 100)}% confidence
@@ -63,7 +73,8 @@ export function DetailDialog({
     [detail, setDetail] = useState<PostDetail | null>(null),
     [error, setError] = useState(""),
     [filter, setFilter] = useState<Intent | "all">("all"),
-    [query, setQuery] = useState("");
+    [query, setQuery] = useState(""),
+    [captionExpanded, setCaptionExpanded] = useState(false);
   useEffect(() => {
     const node = ref.current;
     node?.showModal();
@@ -115,7 +126,7 @@ export function DetailDialog({
         <header className="detail-top">
           <div>
             <span className="eyebrow">POST INTELLIGENCE</span>
-            <h2 id="detail-title">The evidence behind the numbers</h2>
+            <h2 id="detail-title">Post details</h2>
           </div>
           <Button onClick={onClose} aria-label="Close post detail">
             ✕
@@ -156,7 +167,34 @@ export function DetailDialog({
                 </small>
               </div>
               <div className="detail-summary">
-                <h3>{detail.post.caption}</h3>
+                <section
+                  className="post-content-block"
+                  aria-label="Post content"
+                >
+                  <h3>Post content</h3>
+                  <p
+                    className={
+                      "post-caption " + (captionExpanded ? "expanded" : "")
+                    }
+                  >
+                    {detail.post.caption || "No caption."}
+                  </p>
+                  {detail.post.caption.length > 400 && (
+                    <button
+                      className="text-link"
+                      aria-expanded={captionExpanded}
+                      onClick={() => setCaptionExpanded((v) => !v)}
+                    >
+                      {captionExpanded ? "Show less" : "Read full caption"}
+                    </button>
+                  )}
+                </section>
+                <p className="muted small detail-metric-period">
+                  Lifetime metrics
+                  {detail.post.metrics_updated_at
+                    ? ` · Updated ${formatDate(detail.post.metrics_updated_at)}`
+                    : ""}
+                </p>
                 <div className="metrics-grid metrics-grid--three">
                   <Metric
                     label="Purchase intent rate"
