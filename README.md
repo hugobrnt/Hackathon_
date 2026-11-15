@@ -1,6 +1,16 @@
-# Zernio_Hackathon
+# 42 Family - Signal
+_Zernio x Swanbase Hackathon_
 
 Signal turns your social comments into sales: it spots buyers, shows which posts really sell, and DMs each prospect the right product within a minute.
+
+## Quickstart
+
+**Judges: see [USER.md](USER.md) to run the guided demo in 5 minutes (no API key needed).**
+
+To start the full stack, use two terminals:
+
+1. In backend/, run `uv run uvicorn app.main:app --reload`.
+2. In the repository root, run `pnpm install` (first time only), then `pnpm dev:frontend`, then open `http://localhost:5173`.
 
 ## Table of contents
 
@@ -8,7 +18,6 @@ Documentation for the Zernio Hackathon project is provided in the following file
 
 - [/docs](/docs)
   - [prd.md](docs/prd.md) -> Contains the product requirements document, outlining the project's goals, features, and specifications.
-  - [software_architecture_description.md](docs/software_architecture_description.md) -> Contains the software architecture description, including a flowchart illustrating the system's components and interactions.
 
 ## Resources
 
@@ -21,12 +30,3 @@ Documentation for the Zernio Hackathon project is provided in the following file
   - Developer Docs: [https://developers.cloudflare.com](https://developers.cloudflare.com)
 - FastAPI Documentation:
   - Developer Docs: [https://fastapi.tiangolo.com](https://fastapi.tiangolo.com)
-
-## Quickstart
-
-**Judges: see [USER.md](USER.md) to run the guided demo in 5 minutes (no API key needed).**
-
-To start the full stack, use two terminals:
-
-1. In backend/, run `uv run uvicorn app.main:app --reload`.
-2. In the repository root, run `pnpm install` (first time only), then `pnpm dev:frontend`, then open `http://localhost:5173`.
