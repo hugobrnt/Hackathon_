@@ -1,6 +1,6 @@
 # Signal frontend
 
-English interface for the F1–F6 FastAPI backend, using React, TypeScript and Vite. No additional runtime dependencies.
+English interface connected to F1–F6, with the F7–F8 backend merged, using React, TypeScript and Vite. No additional runtime dependencies.
 
 ## Run
 
@@ -33,7 +33,11 @@ The five available connection buttons reflect the backend's SupportedPlatform en
 
 Connected data refreshes from the local backend every 15 seconds while visible. **Sync content** starts an actual Zernio import. Classification may complete asynchronously. The Data & definitions screen provides manual pending classification and metric definitions.
 
-No user authentication, live DM sending, product-event attribution, automatic publication or ad buying is invented in this frontend. These need backend endpoints. This is a local hackathon workspace, not a multi-tenant authenticated deployment.
+F7–F8 auto-DM, product context and tracking endpoints are now present in the backend, but this frontend does not yet wire them into its inbox/profile/analytics. User authentication, publication and paid promotion are not connected. Boost opens an availability dialog and never starts a campaign; Similar ad is disabled. This is a local hackathon workspace, not a multi-tenant authenticated deployment.
+
+## Posts list
+
+The list and leaderboard focus on purchase intent. Views, likes and shares stay in the post-detail view; the intent score and review column are removed from the list. Each post has Boost, a disabled Similar ad button, and an explicit Details ↗ action. The CSV follows the simplified list.
 
 ## Metric rules
 

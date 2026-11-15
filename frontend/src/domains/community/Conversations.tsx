@@ -35,9 +35,9 @@ export function Conversations({
             </Button>
           }
         >
-          This backend currently exposes F1–F6. Sending DMs, tracking links and
-          managing conversations need the F7–F8 endpoints. No messages will be
-          sent from this screen.
+          Auto-DM and tracking are available in the backend. This inbox is not
+          connected to those endpoints yet. No messages will be sent from this
+          screen.
         </Empty>
       </>
     );

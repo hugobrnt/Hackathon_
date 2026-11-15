@@ -570,9 +570,10 @@ export default function App() {
                 <h2>Live capabilities</h2>
                 <p>
                   Channel authorization, imports, classification, post ranking
-                  and comment evidence are connected to F1–F6. Live DMs,
-                  publishing, advertising and user authentication are not part
-                  of these modules.
+                  and comment evidence are connected to F1–F6. The merged F7–F8
+                  backend adds auto-DM and tracking; those controls are not
+                  wired into this interface yet. Paid promotion is not
+                  connected.
                 </p>
                 <h2>Refresh</h2>
                 <p>

@@ -1,22 +1,14 @@
 import { useMemo, useState } from "react";
 import type { PostIntentStats, PostSortKey } from "../../api/types";
 import { aggregate, PIR_DEFINITION, sortPosts } from "../analytics/model";
-import {
-  formatCount,
-  formatDate,
-  formatPercent,
-  formatScore,
-} from "../../shared/format";
+import { formatCount, formatDate, formatPercent } from "../../shared/format";
 import { Button, Empty, Heading, Metric, PostVisual } from "../../shared/ui";
+import { BoostDialog } from "./BoostDialog";
 
-export const sortLabels: Record<PostSortKey, string> = {
-  intent_score: "Intent score",
+export const sortLabels: Partial<Record<PostSortKey, string>> = {
   purchase_intent_rate: "Purchase intent rate",
   buying_signal_rate: "Buying signals",
   comments: "Audience comments",
-  likes: "Likes",
-  views: "Views",
-  shares: "Shares",
   recent: "Most recent",
 };
 export function PostsView({
@@ -31,7 +23,8 @@ export function PostsView({
   const [sort, setSort] = useState<PostSortKey>("purchase_intent_rate"),
     [minimum, setMinimum] = useState(0),
     [format, setFormat] = useState("all"),
-    [layout, setLayout] = useState<"table" | "cards">("table");
+    [layout, setLayout] = useState<"table" | "cards">("table"),
+    [boostPost, setBoostPost] = useState<PostIntentStats | null>(null);
   const filtered = useMemo(
     () =>
       sortPosts(
@@ -46,6 +39,34 @@ export function PostsView({
     [posts, sort, minimum, format, query],
   );
   const total = aggregate(posts);
+  function postActions(post: PostIntentStats) {
+    return (
+      <div className="post-actions">
+        <Button
+          primary
+          className="post-boost"
+          onClick={() => setBoostPost(post)}
+          aria-label={"Boost: " + (post.post.caption || "Untitled post")}
+        >
+          Boost
+        </Button>
+        <Button
+          className="post-similar"
+          disabled
+          title="Create a similar ad — coming soon"
+        >
+          Similar ad
+        </Button>
+        <Button
+          className="post-details"
+          onClick={() => onOpen(post.post.id)}
+          aria-label={"View details: " + (post.post.caption || "Untitled post")}
+        >
+          Details <span aria-hidden="true">↗</span>
+        </Button>
+      </div>
+    );
+  }
   function exportCsv() {
     const cell = (v: unknown) =>
       '"' +
@@ -54,25 +75,12 @@ export function PostsView({
         .replaceAll('"', '""') +
       '"';
     const rows = [
-      [
-        "Post",
-        "Purchase intent rate",
-        "Purchase intents",
-        "Audience comments",
-        "Intent score",
-        "Views",
-        "Likes",
-        "Shares",
-      ],
+      ["Post", "Purchase intent rate", "Purchase intents", "Audience comments"],
       ...filtered.map((p) => [
         p.post.caption,
         p.purchase_intent_rate,
         p.intent_counts.purchase_intent,
         p.total_comments,
-        p.intent_score,
-        p.post.view_count,
-        p.post.like_count,
-        p.post.share_count,
       ]),
     ];
     const url = URL.createObjectURL(
@@ -88,6 +96,13 @@ export function PostsView({
   }
   return (
     <>
+      {boostPost && (
+        <BoostDialog
+          post={boostPost}
+          onClose={() => setBoostPost(null)}
+          onOpen={onOpen}
+        />
+      )}
       <Heading
         title="Posts"
         subtitle="Find the content that creates interest. Understand the numbers behind it."
@@ -110,9 +125,9 @@ export function PostsView({
           definition={PIR_DEFINITION}
         />
         <Metric
-          label="Post views"
-          value={formatCount(total.views)}
-          hint="Available lifetime snapshots"
+          label="Intent comments"
+          value={formatCount(total.intents.purchase_intent)}
+          hint="Explicit buying or trial signals"
         />
         <Metric
           label="Audience comments"
@@ -120,14 +135,9 @@ export function PostsView({
           hint={total.classified + " classified"}
         />
         <Metric
-          label="Shares"
-          value={formatCount(total.shares)}
-          hint={
-            posts.filter((p) => p.post.share_count !== null).length +
-            " / " +
-            posts.length +
-            " posts with data"
-          }
+          label="Posts analyzed"
+          value={posts.length}
+          hint="In the selected period"
         />
       </div>
       <div className="filter-row">
@@ -208,11 +218,7 @@ export function PostsView({
               <tr>
                 <th>Post</th>
                 <th>Purchase intent rate</th>
-                <th>Intent score</th>
-                <th>Views</th>
-                <th>Likes</th>
-                <th>Shares</th>
-                <th>Review</th>
+                <th className="post-actions-heading">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -246,22 +252,7 @@ export function PostsView({
                       comments
                     </small>
                   </td>
-                  <td>
-                    {formatScore(p.intent_score)}
-                    <small>out of 3</small>
-                  </td>
-                  <td>{formatCount(p.post.view_count)}</td>
-                  <td>{formatCount(p.post.like_count)}</td>
-                  <td>{formatCount(p.post.share_count)}</td>
-                  <td>
-                    {p.needs_review ? (
-                      <span className="pill pill--amber">
-                        {p.needs_review} to review
-                      </span>
-                    ) : (
-                      <span className="muted">—</span>
-                    )}
-                  </td>
+                  <td>{postActions(p)}</td>
                 </tr>
               ))}
             </tbody>
@@ -289,12 +280,10 @@ export function PostsView({
                 comments
               </small>
               <div className="leader-meta">
-                {formatCount(p.post.view_count)} views ·{" "}
-                {formatScore(p.intent_score)} intent score
+                {p.post.media_type ?? "Post"} ·{" "}
+                {formatDate(p.post.created_time)}
               </div>
-              <Button primary={i === 0} onClick={() => onOpen(p.post.id)}>
-                Inspect signals →
-              </Button>
+              {postActions(p)}
             </article>
           ))}
         </div>

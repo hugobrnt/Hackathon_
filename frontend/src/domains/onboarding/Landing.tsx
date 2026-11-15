@@ -162,7 +162,7 @@ export function Landing({
             ],
             [
               "Does this version send automatic DMs?",
-              "Not yet. The demo includes a clearly marked conversation simulation. Live sending and advertising require the next backend modules.",
+              "Not yet. The demo includes a clearly marked conversation simulation. Live DM controls still need to be connected to the backend. Paid promotion is not available yet.",
             ],
           ].map(([q, a]) => (
             <details key={q}>

@@ -780,7 +780,13 @@ tbody td small {
   color: #111;
 }
 .post-table {
-  min-width: 850px;
+  min-width: 740px;
+}
+.post-table th:first-child {
+  width: 44%;
+}
+.post-table th:nth-child(2) {
+  width: 23%;
 }
 .post-table tbody tr:hover {
   background: #fcfcfc;
@@ -790,7 +796,7 @@ tbody td small {
   align-items: center;
   gap: 14px;
   text-align: left;
-  max-width: 300px;
+  max-width: 440px;
   font-size: 12px;
   padding: 0;
   line-height: 1.5;
@@ -2521,5 +2527,79 @@ tbody td small {
   }
   .detail-top {
     top: -17px;
+  }
+}
+
+.post-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.post-actions-heading {
+  text-align: right;
+}
+.post-actions .btn {
+  min-height: 34px;
+  padding: 8px 12px;
+  font-size: 11px;
+}
+.post-actions .post-similar:disabled {
+  background: #f5f5f5;
+  border-color: #ededed;
+  color: #949494;
+  opacity: 1;
+}
+.post-actions .post-details {
+  margin-left: 9px;
+  border-color: transparent;
+  color: #333;
+}
+.post-details span {
+  font-size: 18px;
+  line-height: 14px;
+}
+.leader-card .post-actions {
+  flex-wrap: wrap;
+  justify-content: flex-start;
+}
+.leader-card .post-actions .post-details {
+  flex: 1;
+  margin-left: 0;
+}
+.boost-dialog {
+  width: min(480px, 92vw);
+  border: 1px solid #ddd;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 20px 80px #0003;
+}
+.boost-dialog::backdrop {
+  background: #0004;
+}
+.boost-caption {
+  margin: 22px 0 12px;
+  font-weight: 550;
+}
+.boost-signal {
+  color: #777;
+  font-size: 12px;
+  margin-bottom: 24px;
+}
+.boost-signal strong {
+  color: var(--blue);
+  font-size: 23px;
+  margin-right: 6px;
+}
+@media (max-width: 680px) {
+  .leader-card .post-actions .btn {
+    padding: 8px;
+    font-size: 10px;
+  }
+  .leader-card .post-actions .post-details {
+    width: 100%;
+    flex-basis: 100%;
+    justify-content: space-between;
+    border-color: #e5e5e5;
   }
 }
