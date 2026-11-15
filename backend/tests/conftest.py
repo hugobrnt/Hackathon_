@@ -10,6 +10,7 @@ from sqlmodel import Session, create_engine
 from app.core.config import Settings, get_settings
 from app.core.db import get_engine, get_session, init_db
 from app.domains.classification.classifiers import HeuristicClassifier, get_classifier
+from app.domains.insights.grouping import HeuristicGrouper, get_theme_grouper
 from app.domains.outreach.writers import TemplateDmWriter, get_dm_writer
 from app.integrations.zernio.client import ZernioClient, get_zernio_client, get_zernio_client_factory
 from app.main import create_app
@@ -80,6 +81,7 @@ def client(engine: Engine, settings: Settings, zernio_mock: respx.MockRouter) ->
     app.dependency_overrides[get_engine] = lambda: engine
     app.dependency_overrides[get_classifier] = HeuristicClassifier
     app.dependency_overrides[get_dm_writer] = TemplateDmWriter
+    app.dependency_overrides[get_theme_grouper] = HeuristicGrouper
     app.dependency_overrides[get_zernio_client_factory] = lambda: (lambda: ZernioClient(settings))
     # No `with` block: the lifespan would create tables in the default database.
     yield TestClient(app, follow_redirects=False)
