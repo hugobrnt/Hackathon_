@@ -19,7 +19,7 @@ from app.domains.accounts.models import utc_now
 from app.domains.classification.models import MessageClassification
 from app.domains.classification.taxonomy import DM_INTENTS, Sentiment
 from app.domains.content.models import Message, MessageDirection, MessageKind, Post
-from app.domains.outreach.models import ACTIVE_STATUSES, DmAttempt, DmStatus, PostAutoDm
+from app.domains.outreach.models import ACTIVE_STATUSES, DmAttempt, DmStatus, PostAutoDm, PublicReplyStatus
 from app.domains.outreach.schemas import (
     AutoDmRunResult,
     AutoDmSettingsUpdate,
@@ -27,6 +27,7 @@ from app.domains.outreach.schemas import (
     DmDraft,
     DmDraftInput,
 )
+from app.domains.outreach.public_reply import post_public_reply
 from app.domains.outreach.writers import DmWriter
 from app.domains.products.models import Product
 from app.domains.products.service import active_catalog
@@ -113,6 +114,7 @@ def set_post_settings(session: Session, post_id: int, update: AutoDmSettingsUpda
     row.enabled = update.enabled
     row.product_id = update.product_id
     row.require_approval = update.require_approval
+    row.public_reply = update.public_reply
     row.updated_at = utc_now()
     session.add(row)
     session.commit()
@@ -212,7 +214,9 @@ async def draft_for(
 # Sending
 
 
-async def _send(session: Session, attempt: DmAttempt, zernio: ZernioClient) -> DmAttempt:
+async def _send(
+    session: Session, attempt: DmAttempt, zernio: ZernioClient, writer: DmWriter | None = None
+) -> DmAttempt:
     message = session.get(Message, attempt.message_id)
     post = session.get(Post, attempt.post_id)
     assert message is not None and post is not None
@@ -243,6 +247,9 @@ async def _send(session: Session, attempt: DmAttempt, zernio: ZernioClient) -> D
     session.refresh(attempt)
     if attempt.status == DmStatus.sent:
         conversations.start_for_attempt(session, attempt)  # F13: wait for the answer of the prospect.
+        if writer is not None:
+            # F16: only after a sent DM, so the public reply never promises a DM that does not exist.
+            attempt = await post_public_reply(session, attempt, writer, zernio)
     return attempt
 
 
@@ -300,7 +307,7 @@ async def process_message(
         return session.exec(select(DmAttempt).where(DmAttempt.message_id == message_id)).first()
     session.refresh(attempt)
     if status == DmStatus.sending:
-        return await _send(session, attempt, zernio)
+        return await _send(session, attempt, zernio, writer)
     return attempt
 
 
@@ -398,7 +405,7 @@ async def approve(
         attempt.writer = "human"
     if not attempt.text:
         raise OutreachError(400, "The DM has no text. Send a text in the request.")
-    return await _send(session, attempt, zernio)
+    return await _send(session, attempt, zernio, writer)
 
 
 def reject(session: Session, attempt_id: int) -> DmAttempt:
@@ -427,3 +434,13 @@ def list_attempts(
     if status is not None:
         query = query.where(DmAttempt.status == status)
     return list(session.exec(query.order_by(col(DmAttempt.created_at).desc()).limit(limit)))
+
+
+async def send_public_reply(session: Session, attempt_id: int, writer: DmWriter, zernio: ZernioClient) -> DmAttempt:
+    """Manual send or retry of the public reply of a sent DM (F16)."""
+    attempt = _get_attempt(session, attempt_id)
+    if attempt.status != DmStatus.sent:
+        raise OutreachError(409, "Reply in public only after a sent DM.")
+    if attempt.public_reply_status == PublicReplyStatus.sent:
+        raise OutreachError(409, "The public reply is already sent.")
+    return await post_public_reply(session, attempt, writer, zernio, force=True)

@@ -3,7 +3,7 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.domains.classification.taxonomy import Intent
-from app.domains.outreach.models import DmStatus
+from app.domains.outreach.models import DmStatus, PublicReplyStatus
 from app.domains.products.models import BusinessType
 
 
@@ -15,6 +15,10 @@ class AutoDmSettingsUpdate(BaseModel):
         "Default: the product found for each comment (F7 ter).",
     )
     require_approval: bool = Field(default=False, description="F17: all DMs wait for a human approval.")
+    public_reply: bool = Field(
+        default=True,
+        description="F16: after each DM, reply in public under the comment (custom text, language of the comment).",
+    )
 
 
 class AutoDmSettingsRead(BaseModel):
@@ -24,6 +28,7 @@ class AutoDmSettingsRead(BaseModel):
     enabled: bool
     product_id: int | None
     require_approval: bool
+    public_reply: bool
     updated_at: datetime
 
 
@@ -71,6 +76,10 @@ class DmAttemptRead(BaseModel):
     tracked_url: str | None = Field(
         default=None, description="Short tracked link of this DM (F8). Each visit is counted as a click."
     )
+    public_reply_status: PublicReplyStatus | None = Field(default=None, description="F16: public reply under the comment.")
+    public_reply_text: str | None = None
+    public_reply_comment_id: str | None = None
+    public_reply_reason: str | None = None
     link_clicks: int = Field(default=0, description="Human clicks on the link of this DM.")
     retryable: bool
     comment_time: datetime | None
@@ -96,3 +105,16 @@ class AutoDmRunResult(BaseModel):
     skipped: int = 0
     failed: int = 0
     attempts: list[DmAttemptRead] = []
+
+
+class PublicReplyInput(BaseModel):
+    comment: str
+    author_username: str | None
+    intent: Intent
+    product_title: str | None
+    post_caption: str
+
+
+class PublicReplyPreview(BaseModel):
+    text: str | None = Field(description="The public reply, or None if the LLM could not write it.")
+    writer: str
