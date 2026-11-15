@@ -1,13 +1,9 @@
 import type { SocialAccount } from "../../api/types";
 import type { DataMode } from "../../api/source";
-import { Button, Empty, Heading, Icon } from "../../shared/ui";
-export const PLATFORMS = [
-  ["instagram", "Instagram"],
-  ["linkedin", "LinkedIn"],
-  ["facebook", "Facebook"],
-  ["tiktok", "TikTok"],
-  ["twitter", "X"],
-] as const;
+import { Button, Empty, Heading } from "../../shared/ui";
+import { SOCIAL_PLATFORMS } from "../../shared/platforms";
+import { PlatformBadge } from "../../shared/PlatformBadge";
+export const PLATFORMS = SOCIAL_PLATFORMS;
 export function Connections({
   mode,
   accounts,
@@ -54,14 +50,17 @@ export function Connections({
               className="network-card"
               key={key}
               onClick={() => onConnect(key)}
-              disabled={busy || mode === "demo"}
+              disabled={busy || mode === "demo" || key === "bluesky"}
+              title={
+                key === "bluesky"
+                  ? "Connect in Zernio, then refresh accounts"
+                  : key === "snapchat"
+                    ? "Closed-beta access required"
+                    : undefined
+              }
               aria-label={"Connect " + name}
             >
-              {["instagram", "linkedin"].includes(key) ? (
-                <Icon name={key} />
-              ) : (
-                <span className="network-letter">{name.slice(0, 1)}</span>
-              )}
+              <PlatformBadge platform={key} />
               <strong>{name}</strong>
               <span className="network-plus">
                 {connected.length ? "✓" : "+"}
@@ -73,10 +72,6 @@ export function Connections({
           );
         })}
       </div>
-      <p className="footnote">
-        These are the five platforms currently accepted by the backend.
-        Additional Zernio integrations can be added later.
-      </p>
       <section className="panel">
         <h2>Your accounts</h2>
         {!accounts.length ? (

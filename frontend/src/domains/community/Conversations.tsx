@@ -245,7 +245,7 @@ export function Conversations({
       >
         {[
           ["inbox", "DM activity"],
-          ["automation", "Automation"],
+          ["automation", "Reply settings"],
           ["tracking", "Tracking"],
         ].map(([id, label]) => (
           <button
@@ -276,7 +276,7 @@ export function Conversations({
               <Button onClick={() => setRevision((r) => r + 1)}>Retry</Button>
             }
           >
-            Check that your backend includes F7 and F8.
+            Unable to load your conversations. Please try again.
           </Empty>
         ) : tab === "automation" ? (
           <Automation

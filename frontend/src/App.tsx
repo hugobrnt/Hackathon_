@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { api } from "./api/client";
+import { api, request, ApiError } from "./api/client";
+import { AuthForm, type Owner } from "./domains/auth/AuthForm";
 import { parseTimestamp } from "./shared/time";
 import type { DataMode } from "./api/source";
 import type { Intent } from "./api/types";
@@ -12,9 +13,9 @@ import {
   type BrandProfile,
 } from "./domains/accounts/Profile";
 import {
-  DemoOnboarding,
+  Onboarding,
   restartDemoOnboarding,
-} from "./domains/onboarding/DemoOnboarding";
+} from "./domains/onboarding/Onboarding";
 import { TOUR_KEY } from "./domains/onboarding/tour-model";
 import { WorkspaceTour, tourSteps } from "./domains/onboarding/WorkspaceTour";
 import { Landing } from "./domains/onboarding/Landing";
@@ -42,6 +43,8 @@ const nav = [
 const routes = new Set([
   ...nav.map(([id]) => id),
   "landing",
+  "onboarding",
+  "auth",
   "demo",
   "brand",
   "connections",
@@ -61,7 +64,7 @@ function initialMode(): DataMode {
   const q = new URLSearchParams(location.search);
   if (q.has("connected") || q.has("error")) return "live";
   if (q.get("demo") === "1") return "demo";
-  return readStored<string>("signal:mode", "demo") === "live" ? "live" : "demo";
+  return readStored<string>("signal:mode", "live") === "live" ? "live" : "demo";
 }
 function profileFor(key: string, fallback: BrandProfile) {
   const value = readStored<BrandProfile>(key, fallback);
@@ -88,14 +91,47 @@ export default function App() {
       const n = readStored<unknown>(TOUR_KEY, -1);
       return typeof n === "number" && n >= 0 && n < tourSteps.length ? n : -1;
     });
-  const workspaceEnabled = !["landing", "brand", "demo"].includes(route.view);
+  const [owner, setOwner] = useState<Owner | null>(null),
+    [authLoading, setAuthLoading] = useState(true),
+    [authError, setAuthError] = useState("");
+  const needsAuth =
+    mode === "live" && !["landing", "demo"].includes(route.view);
+  useEffect(() => {
+    if (!needsAuth || owner) return;
+    const c = new AbortController();
+    setAuthLoading(true);
+    setAuthError("");
+    request<Owner>("/auth/me", { signal: c.signal })
+      .then((v) => {
+        if (!c.signal.aborted) setOwner(v);
+      })
+      .catch((e) => {
+        if (!c.signal.aborted && !(e instanceof ApiError && e.status === 401))
+          setAuthError(e.message);
+      })
+      .finally(() => {
+        if (!c.signal.aborted) setAuthLoading(false);
+      });
+    return () => c.abort();
+  }, [needsAuth, owner]);
+  useEffect(() => {
+    const expired = () => {
+      setOwner(null);
+      navigate("auth", {}, false);
+    };
+    window.addEventListener("signal:session-expired", expired);
+    return () => window.removeEventListener("signal:session-expired", expired);
+  }, []);
+  const workspaceEnabled =
+    !["landing", "brand", "demo", "onboarding", "auth"].includes(route.view) &&
+    (mode === "demo" || !!owner);
   const preferred = route.params.get("account") ?? "";
   const workspace = useWorkspace(mode, preferred, revision, workspaceEnabled);
   const account = workspace.account;
   const evidence = useEvidence(
     mode,
     workspace.posts,
-    route.view === "analytics",
+    route.view === "analytics" && workspaceEnabled,
   );
   const profileKey = "signal:profile:" + mode + ":brand";
   const fallback =
@@ -194,8 +230,9 @@ export default function App() {
             },
       );
       const id = q.get("account_id");
-      location.hash =
-        "/connections" + (id ? "?account=" + encodeURIComponent(id) : "");
+      location.hash = readStored("signal:live:onboarding-active", false)
+        ? "/onboarding"
+        : "/connections" + (id ? "?account=" + encodeURIComponent(id) : "");
       history.replaceState(null, "", location.pathname + location.hash);
     } else if (q.get("demo") === "1") {
       setMode("demo");
@@ -328,7 +365,7 @@ export default function App() {
   }
   if (route.view === "demo")
     return (
-      <DemoOnboarding
+      <Onboarding
         onComplete={finishDemo}
         onExit={() => navigate("landing", {}, false)}
       />
@@ -337,42 +374,80 @@ export default function App() {
     return (
       <Landing
         onDemo={beginDemo}
-        onStart={() => changeMode("live", "brand")}
-        onResume={() =>
-          mode === "demo" && !readStored("signal:demo:ready", false)
-            ? beginDemo()
-            : navigate("dashboard", {}, false)
-        }
+        onStart={() => {
+          saveStored("signal:live:onboarding-active", true);
+          changeMode("live", "onboarding");
+        }}
+        onResume={() => changeMode("live", "auth")}
       />
     );
-  if (route.view === "brand")
+  if (
+    mode === "live" &&
+    (route.view === "onboarding" || route.view === "brand")
+  ) {
+    if (authLoading)
+      return (
+        <div className="loading-state" role="status">
+          Opening your workspace…
+        </div>
+      );
+    return (
+      <Onboarding
+        key="live"
+        mode="live"
+        signedIn={!!owner}
+        onAuthenticated={setOwner}
+        initialError={notice?.error ? notice.text : ""}
+        onExit={() => navigate("landing", {}, false)}
+        onComplete={() => {
+          setRevision((r) => r + 1);
+          setProfileRevision((r) => r + 1);
+          navigate("dashboard", {}, false);
+        }}
+      />
+    );
+  }
+  if (needsAuth && (!owner || route.view === "auth"))
     return (
       <div className="onboarding">
         <header>
           <a href="#/landing" className="wordmark">
             signal
           </a>
-          <span className="muted small">
-            01 Brand · 02 Channels · 03 Import
-          </span>
-          <Button onClick={beginDemo}>Try demo</Button>
+          <Button onClick={() => navigate("landing", {}, false)}>
+            Back to home
+          </Button>
         </header>
         <main>
-          <Profile
-            key={mode}
-            initial={fallback}
-            onSave={saveProfile}
-            onSkip={() => navigate("connections", {}, false)}
-            onboarding
-          />
-          {notice && (
-            <div role="alert" className="notice notice--error">
-              {notice.text}
-            </div>
+          {authLoading ? (
+            <p role="status">Opening your workspace…</p>
+          ) : owner ? (
+            <>
+              <h1>Welcome back, {owner.name}.</h1>
+              <Button primary onClick={() => navigate("dashboard", {}, false)}>
+                Open workspace →
+              </Button>
+            </>
+          ) : (
+            <AuthForm
+              onSuccess={(v, created) => {
+                setOwner(v);
+                if (created) saveStored("signal:live:onboarding-active", true);
+                navigate(
+                  readStored("signal:live:onboarding-active", false)
+                    ? "onboarding"
+                    : "dashboard",
+                  {},
+                  false,
+                );
+              }}
+            />
           )}
+          {authError && <p role="alert">{authError}</p>}
         </main>
       </div>
     );
+
   return (
     <div className={"app " + (menuOpen ? "menu-is-open" : "")}>
       {menuOpen && (
@@ -386,6 +461,21 @@ export default function App() {
         <a className="wordmark" href="#/dashboard">
           signal
         </a>
+        {mode === "live" && owner && (
+          <button
+            className="text-link small"
+            onClick={() =>
+              void request("/auth/logout", { method: "POST" })
+                .then(() => {
+                  setOwner(null);
+                  navigate("landing", {}, false);
+                })
+                .catch((e) => setNotice({ text: e.message, error: true }))
+            }
+          >
+            Sign out
+          </button>
+        )}
         <nav aria-label="Main navigation">
           {nav.map(([id, label]) => (
             <button

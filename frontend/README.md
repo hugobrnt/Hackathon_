@@ -11,11 +11,11 @@ pnpm install --frozen-lockfile
 pnpm dev:frontend
 ```
 
-Open http://localhost:5173 and choose **Start the guided demo**, or use http://localhost:5173/?demo=1.
+Open http://localhost:5173 and choose **Guided demo**, or use http://localhost:5173/?demo=1.
 
 ## Offline demo
 
-The six-step onboarding includes simulated sign-in, optional brand context, simulated channel authorizations, sample import/classification, product configuration and a guided workspace tour. It never contacts Google, a social network, Zernio or the backend.
+The five-step onboarding shares the real flow: Account, Your offer (optional), Channels, Import, Ready, followed by a guided workspace tour. It never contacts Google, a social network, Zernio or the backend.
 
 Connect one or several sample channels. Each channel has its own account, post and comment IDs. The workspace uses one brand and one product across them. Demo data and activity persist in browser storage; **Restart guided demo** replays onboarding. A new sample import resets the simulated outreach of the selected channels.
 
@@ -63,7 +63,7 @@ DM CTR = successfully sent DMs with at least one human click / successfully sent
 
 The Posts list focuses on purchase intent and actions. Platform metrics stay in detail; formula explanations live in tooltips/Data & definitions. Boost uses F9 campaign creation; Similar ad remains disabled.
 
-Incoming chat replies, user authentication and publication remain outside the connected API features. Brand-voice fields are local; product facts used for DMs are persisted server-side.
+Incoming chat replies and publication remain outside the connected API features. Email/password authentication and reply settings now persist in SQLite.
 
 For large accounts, add backend pagination and aggregated cross-channel insight endpoints rather than fetching every post detail (currently bounded to four concurrent requests).
 
@@ -101,3 +101,16 @@ The Boost dialog loads `GET /ads/accounts?account_id=…` and `GET /posts/{id}/b
 Created/pending-review campaigns count as successful creations, not active delivery. History shows request, delivery and review statuses. `POST /ads/boosts/{id}/refresh` updates an existing campaign’s status. No create request is automatically retried; after an error the user must inspect/reload history before submitting again. The server generates a fresh idempotency key for each new create request, so the UI locks concurrent submissions and offers a distinct “Create another boost” action after success.
 
 Demo campaigns never contact the backend or Zernio. They persist locally, use EUR and a simulated 50 EUR cap, and can move from pending review to approved using “Simulate review”. These local values do not override live server configuration. Validation uses mocked campaign requests and offline simulation; no real campaign is created by automated tests.
+
+
+## Account and onboarding
+
+The local installation has **one brand workspace and one owner**. SQLite persists a scrypt password hash and hashed, revocable seven-day sessions; the session token stays in an HttpOnly SameSite cookie. The first registration claims this installation, including existing social accounts. Further registrations are closed: sign in with the existing owner. This is not multi-tenant hosting. There is no Google login, email verification or self-service password reset yet.
+
+Restart the backend after updating. Use the exact `FRONTEND_URL` origin (default `http://localhost:5173`), and enable HTTPS in deployment so cookies are Secure. Cross-origin API hosting must use compatible cookie domains and CORS; the Vite `/api` proxy is the recommended local setup. Private routes require a session; signed Zernio webhooks and public tracked-link redirects remain reachable. OAuth callbacks use expiring, single-use state and verify the account against Zernio.
+
+Create an account and Guided demo share Account → Your offer → Channels → Import → Ready. Offer context is optional; its draft stays in this browser until saved to connected channels before import. Real imports and classification must finish successfully before a channel is shown as ready; failures are retryable. The live flow resumes at Channels after OAuth. Demo is isolated and sends nothing. A brief Demo badge distinguishes it; the landing describes the product rather than its fixtures.
+
+The social catalog includes Instagram, LinkedIn, Facebook, TikTok, X, YouTube, Pinterest, Reddit, Threads, Bluesky, Google Business Profile and Snapchat. Snapchat requires Zernio closed-beta access. Bluesky uses credentials rather than our hosted OAuth path: connect it in Zernio and refresh accounts. Metrics, comments and DM support differ by network. Logos do not imply every feature is supported everywhere.
+
+Conversations → Reply settings persists tone, objective and comma-separated human-review keywords per connected channel. These preferences feed DM generation; matching terms require approval even when a post is automatic. Draft/automatic delivery stays explicit per post. Saving preferences does not send messages or rewrite existing drafts.

@@ -1,4 +1,6 @@
+import { SOCIAL_PLATFORMS } from "./platforms";
 const names: Record<string, string> = {
+  ...Object.fromEntries(SOCIAL_PLATFORMS),
   instagram: "Instagram",
   linkedin: "LinkedIn",
   youtube: "YouTube",
@@ -19,6 +21,7 @@ export function PlatformBadge({
 }) {
   const name = names[platform] ?? platform;
   const asset = [
+    ...SOCIAL_PLATFORMS.map(([id]) => id),
     "instagram",
     "linkedin",
     "youtube",

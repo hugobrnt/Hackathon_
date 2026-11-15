@@ -102,39 +102,9 @@ export function Profile({
             onChange={(e) => update("audience", e.target.value)}
           />
         </label>
-        <fieldset>
-          <legend>Your goal</legend>
-          <div className="goal-options">
-            {[
-              "Awareness",
-              "Meaningful engagement",
-              "Traffic",
-              "Acquisition",
-            ].map((g) => (
-              <label key={g} className={form.goal === g ? "selected" : ""}>
-                <input
-                  type="radio"
-                  name="goal"
-                  value={g}
-                  checked={form.goal === g}
-                  onChange={() => update("goal", g)}
-                />
-                {g}
-              </label>
-            ))}
-          </div>
-        </fieldset>
-        <label className="field">
-          Voice and constraints
-          <input
-            maxLength={1000}
-            value={form.tone}
-            onChange={(e) => update("tone", e.target.value)}
-          />
-        </label>
         <p className="footnote">
-          Brand voice stays in this browser. Configure the product used by DMs
-          in Conversations → Automation.
+          Manage your offer and reply preferences in Conversations → Reply
+          settings.
         </p>
         {error && (
           <p role="alert" className="error-text">

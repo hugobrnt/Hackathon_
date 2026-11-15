@@ -1,13 +1,8 @@
 import { demoAccount, demoDetails } from "./data.ts";
 import { readStored, saveStored } from "../../shared/storage.ts";
 import type { PostDetail, SocialAccount } from "../../api/types";
-export const demoChannels = [
-  ["instagram", "Instagram"],
-  ["linkedin", "LinkedIn"],
-  ["facebook", "Facebook"],
-  ["tiktok", "TikTok"],
-  ["twitter", "X"],
-] as const;
+import { SOCIAL_PLATFORMS } from "../../shared/platforms.ts";
+export const demoChannels = SOCIAL_PLATFORMS;
 const CONFIG_KEY = "signal:demo:channels";
 export function demoAccounts(): SocialAccount[] {
   const raw = readStored<unknown>(CONFIG_KEY, ["instagram"]);

@@ -1,3 +1,4 @@
+import { readDemoReplies } from "../../api/replies.ts";
 import type { OutreachSource } from "../../api/outreach";
 import type {
   AutoDmSettings,
@@ -197,16 +198,20 @@ function draft(messageId: number): DmDraft {
     });
   }
   persist(p.post.account_id);
+  const preferences = readDemoReplies(p.post.account_id);
+  const greeting = preferences.tone === "professional" ? "Hello" : "Hi";
+  const action =
+    preferences.goal === "trial"
+      ? "Explore trial options on the product page."
+      : preferences.goal === "demo"
+        ? "Explore demo options on the product page."
+        : "Learn more on the product page.";
+  const text =
+    preferences.tone === "concise"
+      ? `${s.product.name}: ${action} ${url}`
+      : `${greeting} ${(m.author_name ?? "there").replace(/[.!]+$/, "")}. ${s.product.description.slice(0, 180)} ${action} ${url}`;
   return {
-    text:
-      "Hi " +
-      (m.author_name ?? "there") +
-      "! Here is more about " +
-      s.product.name +
-      ": " +
-      s.product.description.slice(0, 180) +
-      " " +
-      url,
+    text,
     writer: "demo-template",
     tracked_link_code: code,
     tracked_url: url,
@@ -298,7 +303,14 @@ export const demoOutreach: OutreachSource = {
       const skip = old || duplicate || !m.author_id;
       const status = skip
         ? "skipped"
-        : rule.require_approval ||
+        : readDemoReplies(p.post.account_id)
+              .escalation_topics.split(",")
+              .some(
+                (t) =>
+                  t.trim() &&
+                  m.text.toLowerCase().includes(t.trim().toLowerCase()),
+              ) ||
+            rule.require_approval ||
             m.classification.needs_review ||
             m.classification.sentiment === "negative"
           ? "pending_approval"

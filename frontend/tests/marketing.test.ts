@@ -217,7 +217,7 @@ test("campaign errors never trigger an automatic second create request", async (
     throw new TypeError("Network unavailable");
   };
   try {
-    await assert.rejects(liveAds.create(1, "account", input), /Cannot reach/);
+    await assert.rejects(liveAds.create(1, "account", input), /Unable to reach Signal/);
     assert.equal(calls, 1);
   } finally {
     globalThis.fetch = original;

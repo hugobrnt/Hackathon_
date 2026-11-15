@@ -1,3 +1,4 @@
+import { SOCIAL_PLATFORMS } from "../../shared/platforms";
 import { PlatformBadge } from "../../shared/PlatformBadge";
 import { Button, Icon } from "../../shared/ui";
 export function Landing({
@@ -21,9 +22,9 @@ export function Landing({
           <a href="#questions">FAQ</a>
         </div>
         <div className="actions">
-          <Button onClick={onResume}>Open workspace</Button>
+          <Button onClick={onResume}>Sign in</Button>
           <Button primary onClick={onStart}>
-            Connect my channels
+            Create an account
           </Button>
         </div>
       </nav>
@@ -41,16 +42,16 @@ export function Landing({
           </p>
           <div className="actions">
             <Button primary onClick={onDemo}>
-              Start the guided demo →
+              Guided demo →
             </Button>
-            <Button onClick={onStart}>Connect my channels</Button>
+            <Button onClick={onStart}>Create an account</Button>
           </div>
-          <small>No account or API key needed for the demo.</small>
           <div className="platform-strip">
-            {["instagram", "linkedin", "tiktok", "facebook", "twitter"].map(
-              (platform) => <PlatformBadge key={platform} platform={platform} label />,
-            )}
+            {SOCIAL_PLATFORMS.map(([platform]) => (
+              <PlatformBadge key={platform} platform={platform} label />
+            ))}
           </div>
+          <small>Connections powered by Zernio · Snapchat in closed beta</small>
         </section>
         <section id="product" className="landing-preview">
           <div className="preview-top">
@@ -71,7 +72,7 @@ export function Landing({
                 with.
               </p>
               <Button primary onClick={onDemo}>
-                Start the guided demo ↗
+                Explore Signal ↗
               </Button>
             </div>
             <div className="preview-metrics">
@@ -152,16 +153,20 @@ export function Landing({
           <h2>Your questions, answered.</h2>
           {[
             [
-              "Does purchase intent mean a sale?",
-              "No. It is a comment-classification signal. Revenue needs separate product tracking.",
+              "What can I learn from my audience?",
+              "Discover buying signals, recurring questions, objections and feature requests. Open each insight to read the comments behind it and decide what to improve or say next.",
             ],
             [
-              "Can I try this without an Instagram account?",
-              "Yes. Try the full guided journey: connect sample channels, explore posts and insights, send a simulated DM and see its click in tracking.",
+              "Can I manage several social channels?",
+              "Yes. Connect your brand’s channels in one workspace, then filter by channel or post. Available metrics and messaging features depend on each platform.",
             ],
             [
-              "Can I send real DMs?",
-              "Yes, from a connected account: save your product, configure Auto-DM on a post, then process or approve its messages. The offline demo simulates the same workflow without sending anything.",
+              "Do I stay in control of replies?",
+              "Yes. Review drafts before sending, or enable automatic replies on eligible posts. Choose your tone and goal, and flag topics that should come back to you.",
+            ],
+            [
+              "How does Signal find my strongest posts?",
+              "Signal combines performance with the buying interest expressed in comments. Compare purchase intent rates, inspect the comments and boost the posts worth promoting.",
             ],
           ].map(([q, a]) => (
             <details key={q}>
@@ -172,8 +177,8 @@ export function Landing({
         </section>
         <section className="landing-cta">
           <h2>Your next opportunity is already in your comments.</h2>
-          <Button primary onClick={onDemo}>
-            Try the complete demo →
+          <Button primary onClick={onStart}>
+            Create an account →
           </Button>
         </section>
       </main>
@@ -181,7 +186,7 @@ export function Landing({
         <span className="wordmark">signal</span>
         <p>Understand demand. Guide your strategy. Activate your community.</p>
         <button className="text-link" onClick={onResume}>
-          Open workspace ↗
+          Sign in ↗
         </button>
       </footer>
     </div>

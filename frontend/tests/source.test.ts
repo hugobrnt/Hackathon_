@@ -34,7 +34,7 @@ test("connected mode uses the API, excludes seeded demo accounts, and never fall
     assert.deepEqual(accounts.map(a => a.id), ["real"]);
     assert.deepEqual(urls, ["/api/accounts?sync=false"]);
     globalThis.fetch = async () => { throw new Error("Backend offline"); };
-    await assert.rejects(sourceFor("live").accounts(), /Cannot reach the API/);
+    await assert.rejects(sourceFor("live").accounts(), /Unable to reach Signal/);
   } finally { globalThis.fetch = previous; }
 });
 

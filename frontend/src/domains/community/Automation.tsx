@@ -11,6 +11,7 @@ import type {
 } from "../../api/outreach-types";
 import { outreachFor } from "../../api/outreach";
 import { saveBrandProduct } from "./brand-product";
+import { ReplyPreferencesForm } from "./ReplyPreferencesForm";
 import { ProductForm } from "./ProductForm";
 import type { ActionConfirmation } from "./ConfirmAction";
 import { Button } from "../../shared/ui";
@@ -72,65 +73,72 @@ export function Automation({
     });
   }
   return (
-    <div className="automation-grid">
-      <section className="panel">
-        <span className="eyebrow">01 · PRODUCT CONTEXT</span>
-        <h2>Your product, across all channels.</h2>
-        {mismatch && (
-          <p className="notice">
-            Product settings differ across channels. Save once to sync them.
-          </p>
-        )}
-        <ProductForm
-          key={product?.updated_at ?? "new"}
-          product={product}
-          busy={busy}
-          onSave={saveProduct}
-          demo={mode === "demo"}
-        />
-      </section>
-      <section className="panel">
-        <span className="eyebrow">02 · POST AUTOMATION</span>
-        <h2>Choose how DMs are handled.</h2>
-        <label className="field">
-          Post
-          <select
-            value={postId}
-            disabled={!posts.length || busy}
-            onChange={(e) => setPostId(Number(e.target.value))}
-          >
-            {!posts.length && <option value={0}>Import a post first</option>}
-            {posts.map((p) => (
-              <option value={p.post.id} key={p.post.id}>
-                {p.post.caption || "Untitled post"}
-              </option>
-            ))}
-          </select>
-        </label>
-        {error ? (
-          <div className="notice notice--error" role="alert">
-            {error}
-            <Button onClick={() => setRefresh((n) => n + 1)}>Retry</Button>
-          </div>
-        ) : !rule && postId ? (
-          <p role="status">Loading rules…</p>
-        ) : rule && detail ? (
-          <PostRules
-            key={postId + ":" + rule.updated_at}
-            mode={mode}
-            rule={rule}
-            detail={detail}
-            product={!!product}
+    <>
+      <ReplyPreferencesForm
+        mode={mode}
+        account={account}
+        accounts={accounts}
+        busy={busy}
+        perform={perform}
+      />
+      <div className="automation-grid">
+        <section className="panel">
+          <h2>Your offer</h2>
+          {mismatch && (
+            <p className="notice">
+              Product settings differ across channels. Save once to sync them.
+            </p>
+          )}
+          <ProductForm
+            key={product?.updated_at ?? "new"}
+            product={product}
             busy={busy}
-            perform={perform}
-            confirm={confirm}
-            refresh={() => setRefresh((n) => n + 1)}
+            onSave={saveProduct}
+            demo={mode === "demo"}
           />
-        ) : (
-          <p className="muted">Import content to configure Auto-DM.</p>
-        )}
-      </section>
-    </div>
+        </section>
+        <section className="panel">
+          <h2>Drafts or automatic replies</h2>
+          <label className="field">
+            Post
+            <select
+              value={postId}
+              disabled={!posts.length || busy}
+              onChange={(e) => setPostId(Number(e.target.value))}
+            >
+              {!posts.length && <option value={0}>Import a post first</option>}
+              {posts.map((p) => (
+                <option value={p.post.id} key={p.post.id}>
+                  {p.post.caption || "Untitled post"}
+                </option>
+              ))}
+            </select>
+          </label>
+          {error ? (
+            <div className="notice notice--error" role="alert">
+              {error}
+              <Button onClick={() => setRefresh((n) => n + 1)}>Retry</Button>
+            </div>
+          ) : !rule && postId ? (
+            <p role="status">Loading rules…</p>
+          ) : rule && detail ? (
+            <PostRules
+              key={postId + ":" + rule.updated_at}
+              mode={mode}
+              rule={rule}
+              detail={detail}
+              product={!!product}
+              busy={busy}
+              perform={perform}
+              confirm={confirm}
+              refresh={() => setRefresh((n) => n + 1)}
+            />
+          ) : (
+            <p className="muted">Import content to configure Auto-DM.</p>
+          )}
+        </section>
+      </div>
+    </>
   );
 }
 function PostRules({

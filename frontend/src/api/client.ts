@@ -21,6 +21,7 @@ export async function request<T>(
   let response: Response;
   try {
     response = await fetch(BASE + path, {
+      credentials: "include",
       ...init,
       headers: { "Content-Type": "application/json", ...init.headers },
       signal: init.signal ?? AbortSignal.timeout(30000),
@@ -28,10 +29,7 @@ export async function request<T>(
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError")
       throw error;
-    throw new ApiError(
-      0,
-      "Cannot reach the API. Start the backend or switch to the offline demo.",
-    );
+    throw new ApiError(0, "Unable to reach Signal. Please try again.");
   }
   if (!response.ok) {
     let message = "API request failed (" + response.status + ").";
@@ -42,6 +40,12 @@ export async function request<T>(
     } catch {
       /* Non-JSON proxy errors. */
     }
+    if (
+      response.status === 401 &&
+      typeof window !== "undefined" &&
+      !path.startsWith("/auth/")
+    )
+      window.dispatchEvent(new Event("signal:session-expired"));
     throw new ApiError(response.status, message);
   }
   return response.json() as Promise<T>;

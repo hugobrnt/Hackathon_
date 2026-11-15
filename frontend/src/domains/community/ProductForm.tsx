@@ -13,12 +13,14 @@ export function ProductForm({
   product,
   busy,
   onSave,
-  demo = false,
+
+  submitLabel = "Save offer",
 }: {
   product: ProductInput | Product | null;
   busy: boolean;
   onSave: (v: ProductInput) => void;
   demo?: boolean;
+  submitLabel?: string;
 }) {
   const [form, setForm] = useState<ProductInput>(
       product ?? {
@@ -87,7 +89,7 @@ export function ProductForm({
         />
       </label>
       <label className="field">
-        Facts the agent can use
+        What should your audience know?
         <textarea
           required
           minLength={20}
@@ -98,19 +100,13 @@ export function ProductForm({
           placeholder="What it does, pricing, free trial, limitations…"
         />
       </label>
-      <p className="footnote">
-        These facts and the post caption inform generated DMs.{" "}
-        {demo
-          ? "Saved only in this demo."
-          : "Saved to every connected channel for this brand."}
-      </p>
       {error && (
         <p role="alert" className="error-text">
           {error}
         </p>
       )}
       <Button primary type="submit" disabled={busy}>
-        {busy ? "Saving…" : "Save product"}
+        {busy ? "Saving…" : submitLabel}
       </Button>
     </form>
   );
