@@ -22,6 +22,8 @@ Documentation for the Zernio Hackathon project is provided in the following file
 
 ## Quickstart
 
+**Judges: see [USER.md](USER.md) to run the guided demo in 5 minutes (no API key needed).**
+
 To start the full stack, use two terminals:
 
 1. In backend/, run `uv run uvicorn app.main:app --reload`.
