@@ -8,6 +8,7 @@ from app.core.config import Settings, get_settings
 from app.domains.classification.taxonomy import Intent
 from app.domains.outreach.schemas import DmDraft, DmDraftInput, PublicReplyInput
 from app.domains.products.models import BusinessType
+from app.domains.replies.policy import reply_instructions
 from app.integrations.cloudflare.workers_ai import WorkersAIClient, WorkersAIError
 
 logger = logging.getLogger(__name__)
@@ -15,7 +16,7 @@ logger = logging.getLogger(__name__)
 MAX_DM_LENGTH = 600
 
 COMMON_RULES = """Rules:
-- Write in the language of the comment (French by default). Use "tu" in French.
+- Write in the language of the comment (French by default). Follow the configured reply style.
 - 2 or 3 short sentences, at most 350 characters. Friendly and human, no hard selling, at most 1 emoji.
 - Start with the username of the person if it is given.
 - Use ONLY facts from the product description and the post caption. Never invent a price, a feature, \
@@ -42,7 +43,8 @@ If the answer is not in the facts, say that the landing page has the details. Th
 security) if it exists, then give the link. Never argue.
 - Never talk about delivery, sizes or orders: it is software.
 
-""" + COMMON_RULES,
+"""
+    + COMMON_RULES,
     BusinessType.ecommerce: """You write the first private message (Instagram DM) that an online shop sends to a \
 person who commented on its post. Goal: help the person and bring them to the product page to order.
 
@@ -56,7 +58,8 @@ exist. If the answer is not in the facts, say that the page has the details. The
 - objection: acknowledge the concern with empathy, answer with one relevant fact (quality, price, returns, \
 guarantee) if it exists, then give the link. Never argue.
 
-""" + COMMON_RULES,
+"""
+    + COMMON_RULES,
 }
 
 DM_SCHEMA: dict[str, Any] = {
@@ -92,7 +95,28 @@ def template_draft(item: DmDraftInput) -> DmDraft:
     templates = TEMPLATES[item.business_type]
     template = templates.get(item.intent, templates[Intent.pre_purchase_question])
     hello = f"Hello {item.author_name} !" if item.author_name else "Hello !"
-    text = template.format(hello=hello, product=item.product_name, link=item.landing_url)
+    text = template.format(
+        hello=hello, product=item.product_name, link=item.landing_url
+    )
+    if item.reply_tone == "professional":
+        text = (
+            text.replace("Hello", "Bonjour")
+            .replace("ton ", "votre ")
+            .replace("ta ", "votre ")
+            .replace("Tu peux", "Vous pouvez")
+            .replace("Tu trouveras", "Vous trouverez")
+            .replace("🙌", "")
+            .replace(" !", ".")
+        )
+    elif item.reply_tone == "concise":
+        text = f"{item.product_name} : {item.landing_url}"
+    if item.reply_goal in {"trial", "demo"}:
+        action = (
+            "les possibilités d’essai"
+            if item.reply_goal == "trial"
+            else "les possibilités de démonstration"
+        )
+        text = f"{text} Consultez la page pour {action}."
     return DmDraft(text=text, writer="template")
 
 
@@ -105,7 +129,9 @@ class TemplateDmWriter:
 
 
 class WorkersAIDmWriter:
-    def __init__(self, settings: Settings, client: WorkersAIClient | None = None) -> None:
+    def __init__(
+        self, settings: Settings, client: WorkersAIClient | None = None
+    ) -> None:
         self._settings = settings
         self._client = client or WorkersAIClient(settings)
 
@@ -120,11 +146,16 @@ class WorkersAIDmWriter:
             f"Post caption: {item.post_caption.strip()[:600] or 'unknown'}\n"
             f"Link: {item.landing_url}"
         )
-        system = SYSTEM_PROMPTS[item.business_type]
-        messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
+        system = SYSTEM_PROMPTS[item.business_type] + "\n" + reply_instructions(item.reply_tone, item.reply_goal)
+        messages = [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ]
         model = self._settings.classifier_large_model
         try:
-            raw = await self._client.run_json(model, messages, DM_SCHEMA, max_tokens=300)
+            raw = await self._client.run_json(
+                model, messages, DM_SCHEMA, max_tokens=300
+            )
             text = str(raw.get("message", "")).strip()
         except WorkersAIError as exc:
             logger.warning("DM generation failed: %s", exc)

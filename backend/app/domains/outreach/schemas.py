@@ -41,6 +41,8 @@ class DmDraftInput(BaseModel):
     business_type: BusinessType
     product_name: str
     product_description: str
+    reply_tone: str = "professional"
+    reply_goal: str = "product_visit"
 
 
 class DmDraft(BaseModel):
@@ -74,7 +76,8 @@ class DmAttemptRead(BaseModel):
     product_title: str | None = None
     tracked_link_code: str | None = None
     tracked_url: str | None = Field(
-        default=None, description="Short tracked link of this DM (F8). Each visit is counted as a click."
+        default=None,
+        description="Short tracked link of this DM (F8). Each visit is counted as a click.",
     )
     public_reply_status: PublicReplyStatus | None = Field(default=None, description="F16: public reply under the comment.")
     public_reply_text: str | None = None
@@ -86,7 +89,8 @@ class DmAttemptRead(BaseModel):
     created_at: datetime
     sent_at: datetime | None
     latency_seconds: float | None = Field(
-        default=None, description="Time between the comment and the DM (PRD target: < 60 s)."
+        default=None,
+        description="Time between the comment and the DM (PRD target: < 60 s).",
     )
 
 

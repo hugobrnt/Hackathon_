@@ -46,10 +46,11 @@ def get_insights(
     session: SessionDep,
     account_id: str,
     post_id: int | None = None,
+    product_id: Annotated[int | None, Query(ge=0)] = None,
     top: Annotated[int, Query(ge=1, le=20)] = 5,
 ) -> InsightsReport:
     try:
-        return service.latest(session, account_id, post_id, top)
+        return service.latest(session, account_id, post_id, top, product_id)
     except service.InsightsError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
 

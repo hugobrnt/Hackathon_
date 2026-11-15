@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from app.core.config import Settings, get_settings
 from app.domains.conversations.schemas import AgentDecision
 from app.domains.products.models import BusinessType
+from app.domains.replies.policy import reply_instructions
 from app.integrations.cloudflare.workers_ai import WorkersAIClient, WorkersAIError
 
 logger = logging.getLogger(__name__)
@@ -28,6 +29,8 @@ class AgentTurn(BaseModel):
 
 
 class AgentInput(BaseModel):
+    reply_tone: str = "professional"
+    reply_goal: str = "product_visit"
     origin_comment: str
     post_caption: str
     product: AgentProduct | None
@@ -48,7 +51,7 @@ that the facts cannot answer, negotiation of a price or a discount).
 - "close": the person wants no more messages, or the conversation is finished (for example "merci, c'est bon").
 
 Rules for "reply":
-- Language of the prospect (French by default), "tu" in French, 1 to 3 short sentences, at most 1 emoji.
+- Language of the prospect (French by default), 1 to 3 short sentences. Follow the configured reply style.
 - Use ONLY facts from the product descriptions and the post caption. Never invent a price, a delay, a feature, \
 a discount or a stock level.
 - If the prospect asks about another product of the catalog, answer about it and give its link.
@@ -102,7 +105,7 @@ class WorkersAIConversationAgent:
         self._client = client or WorkersAIClient(settings)
 
     async def decide(self, item: AgentInput) -> AgentDecision:
-        messages = [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": build_user_prompt(item)}]
+        messages = [{"role": "system", "content": SYSTEM_PROMPT + "\n" + reply_instructions(item.reply_tone, item.reply_goal)}, {"role": "user", "content": build_user_prompt(item)}]
         try:
             raw = await self._client.run_json(self._settings.classifier_large_model, messages, DECISION_SCHEMA, 400)
             decision = AgentDecision.model_validate(raw)

@@ -1,0 +1,136 @@
+.catalog-page {
+  display: grid;
+  gap: 22px;
+}
+.catalog-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+.catalog-card {
+  margin: 0;
+  min-width: 0;
+}
+.catalog-card h2 {
+  font-size: 20px;
+  margin-bottom: 8px;
+}
+.catalog-card > a,
+.catalog-draft-row span {
+  font-size: 12px;
+  color: #666;
+  overflow-wrap: anywhere;
+}
+.catalog-card > p {
+  line-height: 1.65;
+  font-size: 14px;
+  margin: 18px 0;
+}
+.catalog-channel-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.catalog-editor {
+  max-width: 800px;
+}
+.catalog-channels {
+  border: 0;
+  padding: 20px 0 0;
+  display: flex;
+  gap: 15px;
+  flex-wrap: wrap;
+}
+.catalog-channels legend {
+  font-size: 13px;
+  font-weight: 600;
+}
+.catalog-channels label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.draft-catalog {
+  display: grid;
+  gap: 12px;
+}
+.catalog-draft-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--border);
+  padding: 16px;
+  border-radius: 8px;
+}
+.catalog-draft-row > div {
+  flex: 1;
+  min-width: 0;
+}
+.catalog-draft-row strong,
+.catalog-draft-row span {
+  display: block;
+}
+.catalog-draft-row span {
+  margin-top: 6px;
+}
+.product-routing {
+  padding: 16px;
+  background: #fafafa;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin: 16px 0;
+}
+.product-routing .field {
+  margin-bottom: 12px;
+}
+.product-routing p {
+  font-size: 12px;
+  color: #666;
+  line-height: 1.5;
+}
+.product-routing a {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 800px) {
+  .catalog-list {
+    grid-template-columns: 1fr;
+  }
+  .catalog-draft-row {
+    flex-wrap: wrap;
+  }
+  .catalog-draft-row > div {
+    flex-basis: 100%;
+  }
+}
+
+.catalog-product-link {
+  min-width: 0;
+  margin: 16px 0;
+}
+.catalog-product-link > span {
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  color: #888;
+  margin-bottom: 5px;
+}
+.catalog-product-link a {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+  font-size: 13px;
+  color: #666;
+}
+.catalog-product-link a > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.catalog-product-link a > span:last-child {
+  flex-shrink: 0;
+}

@@ -23,6 +23,18 @@ CATEGORY_INTENTS: dict[InsightCategory, Intent] = {
 }
 
 
+class InsightRun(SQLModel, table=True):
+    """Saved scope and counts, including successful runs with no themes."""
+
+    __tablename__ = "insight_runs"
+    run_id: str = Field(primary_key=True)
+    account_id: str = Field(index=True)
+    post_id: int | None = None
+    product_id: int | None = None
+    totals: dict[str, int] = Field(default_factory=dict, sa_column=Column(JSON, nullable=False))
+    generated_at: datetime = Field(default_factory=utc_now)
+
+
 class InsightTheme(SQLModel, table=True):
     """One theme of similar messages (F12). One run stores all the themes of an account."""
 
@@ -32,6 +44,7 @@ class InsightTheme(SQLModel, table=True):
     run_id: str = Field(index=True)
     account_id: str = Field(index=True)
     post_id: int | None = Field(default=None, index=True, description="Set if the run covers one post only.")
+    product_id: int | None = Field(default=None, index=True, description="Product scope; 0 means unassigned.")
     category: InsightCategory = Field(index=True)
     title: str
     summary: str = ""

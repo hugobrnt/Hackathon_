@@ -36,13 +36,14 @@ def upsert_account(
 
 
 async def sync_accounts(
-    session: Session, client: ZernioClient, platform: str | None = None
+    session: Session, client: ZernioClient, platform: str | None = None, profile_id: str | None = None
 ) -> list[SocialAccount]:
     """Copy the accounts connected in Zernio into the local database."""
     remote = await client.list_accounts(platform=platform)
     return [
         upsert_account(session, a.id, a.platform, a.username or a.display_name, a.profile_id_str)
         for a in remote
+        if profile_id is None or a.profile_id_str == profile_id
     ]
 
 

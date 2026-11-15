@@ -18,6 +18,8 @@ def get_engine() -> Engine:
 
 def init_db(engine: Engine | None = None) -> None:
     # Import the models so that SQLModel registers their tables.
+    from app.domains.replies import models as _replies  # noqa: F401
+    from app.domains.auth import models as _auth  # noqa: F401
     from app.domains.accounts import models as _accounts  # noqa: F401
     from app.domains.content import models as _content  # noqa: F401
     from app.domains.webhooks import models as _webhooks  # noqa: F401

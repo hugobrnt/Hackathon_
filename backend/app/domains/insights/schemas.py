@@ -8,7 +8,7 @@ from app.domains.insights.models import InsightCategory, PostFormat
 class InsightsRunRequest(BaseModel):
     account_id: str
     post_id: int | None = Field(default=None, description="Only the messages of this post. Default: all the account.")
-    product_id: int | None = Field(default=None, description="Only the messages about this product (F7 ter).")
+    product_id: int | None = Field(default=None, ge=0, description="Product scope. 0: unassigned or uncertain match; omitted: all products.")
     top: int = Field(default=5, ge=1, le=20, description="Number of themes returned per category.")
 
 
@@ -43,6 +43,7 @@ class CategoryInsights(BaseModel):
 
 
 class InsightsReport(BaseModel):
+    product_id: int | None = None
     run_id: str
     account_id: str
     post_id: int | None

@@ -40,6 +40,9 @@ export interface Post {
 }
 
 export interface Classification {
+  product_id?: number | null;
+  product_title?: string | null;
+  product_confidence?: number | null;
   intent: Intent;
   sentiment: Sentiment;
   confidence: number;

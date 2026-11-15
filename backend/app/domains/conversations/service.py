@@ -26,6 +26,8 @@ from app.domains.conversations.models import AGENT_STATUSES, AgentConversation, 
 from app.domains.conversations.schemas import ConversationDetail, ConversationSummary, SentBy, ThreadMessage
 from app.domains.outreach.models import DmAttempt
 from app.domains.products.models import Product
+from app.domains.replies.models import ReplySettings
+from app.domains.replies.policy import requires_human
 from app.domains.products.service import active_catalog
 from app.domains.tracking import service as tracking
 from app.domains.tracking.models import TrackedLink
@@ -203,7 +205,10 @@ def _build_input(session: Session, conversation: AgentConversation) -> AgentInpu
     ]
     if attempt is not None and attempt.text and not any(t.role == "brand" for t in history):
         history.insert(0, AgentTurn(role="brand", text=attempt.text))  # The auto-DM is not received back yet.
+    preferences = session.get(ReplySettings, conversation.account_id)
     return AgentInput(
+        reply_tone=preferences.tone if preferences else "professional",
+        reply_goal=preferences.goal if preferences else "product_visit",
         origin_comment=origin.text if origin else "",
         post_caption=post.caption if post else "",
         product=_agent_product(session, main, origin, post) if main else None,
@@ -218,6 +223,9 @@ def _guardrail(session: Session, conversation: AgentConversation, message: Messa
         return ConversationStatus.closed.value, "The prospect asked to stop."
     if _HUMAN.search(message.text):
         return ConversationStatus.handed_off.value, "The prospect asked for a human."
+    preferences = session.get(ReplySettings, conversation.account_id)
+    if preferences and requires_human(message.text, preferences.escalation_topics):
+        return ConversationStatus.handed_off.value, "A configured topic requires human review."
     row = session.get(MessageClassification, message.id)
     if row is not None and row.intent == Intent.support_complaint:
         return ConversationStatus.handed_off.value, "Complaint or support request."
