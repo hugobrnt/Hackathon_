@@ -171,6 +171,9 @@ async def match_messages(session: Session, matcher: ProductMatcher, messages: Se
         if row is None or row.intent not in PRODUCT_INTENTS:
             continue
         catalog = catalogs.setdefault(message.account_id, active_catalog(session, message.account_id))
+        if row.product_reason == "human confirmed" and any(p.id == row.product_id for p in catalog):
+            matched += 1
+            continue
         post = session.get(Post, message.post_id) if message.post_id is not None else None
         rule = session.get(PostAutoDm, message.post_id) if message.post_id is not None else None
         forced = rule.product_id if rule is not None else None

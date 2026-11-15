@@ -1,11 +1,11 @@
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session
 
 from app.core.db import get_session
 from app.core.errors import ErrorResponse
-from app.domains.products import service
+from app.domains.products import service, review
 from app.domains.products.schemas import ProductCreate, ProductRead, ProductUpdate
 
 router = APIRouter(tags=["products"])
@@ -72,5 +72,25 @@ def update_product(product_id: int, payload: ProductUpdate, session: SessionDep)
 def delete_product(product_id: int, session: SessionDep) -> ProductRead:
     try:
         return ProductRead.model_validate(service.deactivate_product(session, product_id))
+    except service.ProductError as exc:
+        raise _raise(exc) from exc
+
+
+@router.get("/accounts/{account_id}/product-matches/review", response_model=review.ProductReviewPage,
+            summary="Messages whose product needs confirmation", responses=NOT_FOUND)
+def review_product_matches(account_id: str, session: SessionDep, post_id: int | None = None,
+                           before: Annotated[int | None, Query(gt=0)] = None,
+                           limit: Annotated[int, Query(ge=1, le=100)] = 50) -> review.ProductReviewPage:
+    try:
+        return review.pending(session, account_id, post_id, before, limit)
+    except service.ProductError as exc:
+        raise _raise(exc) from exc
+
+
+@router.put("/messages/{message_id}/product-match", response_model=review.ConfirmedProduct,
+            summary="Confirm a message's product without sending a DM", responses=NOT_FOUND)
+def confirm_product_match(message_id: int, payload: review.ConfirmProduct, session: SessionDep) -> review.ConfirmedProduct:
+    try:
+        return review.confirm(session, message_id, payload.product_id)
     except service.ProductError as exc:
         raise _raise(exc) from exc
