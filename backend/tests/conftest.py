@@ -10,10 +10,20 @@ from sqlmodel import Session, create_engine
 from app.core.config import Settings, get_settings
 from app.core.db import get_engine, get_session, init_db
 from app.domains.classification.classifiers import HeuristicClassifier, get_classifier
-from app.integrations.zernio.client import ZernioClient, get_zernio_client
+from app.domains.outreach.writers import TemplateDmWriter, get_dm_writer
+from app.integrations.zernio.client import ZernioClient, get_zernio_client, get_zernio_client_factory
 from app.main import create_app
 
 BASE_URL = "https://zernio.test/api/v1"
+
+
+@pytest.fixture(autouse=True)
+def public_tracking_url(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    """The services read `get_settings()`: give them a public base URL for the short links (F8)."""
+    monkeypatch.setenv("TRACKING_BASE_URL", "https://links.test")
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
 
 
 @pytest.fixture
@@ -69,5 +79,7 @@ def client(engine: Engine, settings: Settings, zernio_mock: respx.MockRouter) ->
     app.dependency_overrides[get_settings] = lambda: settings
     app.dependency_overrides[get_engine] = lambda: engine
     app.dependency_overrides[get_classifier] = HeuristicClassifier
+    app.dependency_overrides[get_dm_writer] = TemplateDmWriter
+    app.dependency_overrides[get_zernio_client_factory] = lambda: (lambda: ZernioClient(settings))
     # No `with` block: the lifespan would create tables in the default database.
     yield TestClient(app, follow_redirects=False)

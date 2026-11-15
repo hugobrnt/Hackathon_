@@ -12,6 +12,9 @@ from app.domains.analytics.router import router as analytics_router
 from app.domains.classification.router import router as classification_router
 from app.domains.content.router import router as content_router
 from app.domains.ingestion.router import router as ingestion_router
+from app.domains.outreach.router import router as outreach_router
+from app.domains.products.router import router as products_router
+from app.domains.tracking.router import router as tracking_router
 from app.domains.webhooks.router import router as webhooks_router
 
 
@@ -43,6 +46,9 @@ def create_app() -> FastAPI:
     app.include_router(webhooks_router)
     app.include_router(classification_router)
     app.include_router(analytics_router)
+    app.include_router(outreach_router)
+    app.include_router(products_router)
+    app.include_router(tracking_router)
 
     @app.get("/health", tags=["system"], summary="Health check")
     def health() -> dict[str, str]:

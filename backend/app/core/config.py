@@ -34,8 +34,13 @@ class Settings(BaseSettings):
     classifier_review_threshold: float = 0.5
     classifier_concurrency: int = 4
 
+    # Auto-DM (F7)
+    auto_dm_max_age_days: int = 7  # Meta accepts a private reply up to 7 days after the comment.
+
     database_url: str = f"sqlite:///{BACKEND_DIR / 'data.db'}"
     public_base_url: str = "http://localhost:8000"
+    # Public base URL of the short links in the DMs (F8). Default: PUBLIC_BASE_URL.
+    tracking_base_url: str | None = None
     frontend_url: str = "http://localhost:5173"
 
 
