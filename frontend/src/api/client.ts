@@ -6,53 +6,77 @@ import type {
   PostSortKey,
   SocialAccount,
 } from "./types";
-
-const BASE = import.meta.env.VITE_API_BASE ?? "/api";
-
+const BASE = (import.meta.env?.VITE_API_BASE ?? "/api").replace(/\/$/, "");
 export class ApiError extends Error {
-  constructor(
-    public status: number,
-    message: string,
-  ) {
+  status: number;
+  constructor(status: number, message: string) {
     super(message);
+    this.status = status;
   }
 }
-
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${BASE}${path}`, {
-    headers: { "Content-Type": "application/json" },
-    ...init,
-  });
+async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  let response: Response;
+  try {
+    response = await fetch(BASE + path, {
+      ...init,
+      headers: { "Content-Type": "application/json", ...init.headers },
+      signal: init.signal ?? AbortSignal.timeout(30000),
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError")
+      throw error;
+    throw new ApiError(
+      0,
+      "Cannot reach the API. Start the backend or switch to the offline demo.",
+    );
+  }
   if (!response.ok) {
-    let detail = response.statusText;
+    let message = "API request failed (" + response.status + ").";
     try {
-      const body: unknown = await response.json();
-      if (body && typeof body === "object" && "detail" in body) {
-        const value = (body as { detail: unknown }).detail;
-        detail = typeof value === "string" ? value : JSON.stringify(value);
-      }
+      const body = await response.json();
+      const detail = body.detail ?? body.message ?? body.error;
+      if (typeof detail === "string") message = detail;
     } catch {
-      // Keep the status text.
+      /* Non-JSON proxy errors. */
     }
-    throw new ApiError(response.status, detail);
+    throw new ApiError(response.status, message);
   }
-  return (await response.json()) as T;
+  return response.json() as Promise<T>;
 }
-
 export const api = {
-  listAccounts: (sync = true) => request<SocialAccount[]>(`/accounts?sync=${sync}`),
-  importAccount: (accountId: string) =>
-    request<ImportResult>(`/accounts/${encodeURIComponent(accountId)}/import`, { method: "POST" }),
+  syncAccounts: () =>
+    request<SocialAccount[]>("/accounts/sync", { method: "POST" }),
+  listAccounts: (sync = false, signal?: AbortSignal) =>
+    request<SocialAccount[]>("/accounts?sync=" + sync, { signal }),
+  connect: (platform: string) =>
+    request<{ auth_url: string }>(
+      "/accounts/connect/" + encodeURIComponent(platform),
+      { method: "POST" },
+    ),
+  importAccount: (id: string) =>
+    request<ImportResult>("/accounts/" + encodeURIComponent(id) + "/import", {
+      method: "POST",
+      signal: AbortSignal.timeout(180000),
+    }),
   loadDemo: () => request<ImportResult>("/demo/load", { method: "POST" }),
-  runClassification: (accountId?: string) =>
+  runClassification: (id?: string) =>
     request<ClassificationRunResult>("/classification/run", {
       method: "POST",
-      body: JSON.stringify({ account_id: accountId ?? null }),
+      body: JSON.stringify({ account_id: id ?? null }),
+      signal: AbortSignal.timeout(180000),
     }),
-  rankPosts: (params: { accountId?: string; sort: PostSortKey; minComments: number }) => {
-    const query = new URLSearchParams({ sort: params.sort, min_comments: String(params.minComments) });
-    if (params.accountId) query.set("account_id", params.accountId);
-    return request<PostIntentStats[]>(`/analytics/posts?${query.toString()}`);
+  rankPosts: (
+    {
+      accountId,
+      sort,
+      minComments,
+    }: { accountId?: string; sort: PostSortKey; minComments: number },
+    signal?: AbortSignal,
+  ) => {
+    const q = new URLSearchParams({ sort, min_comments: String(minComments) });
+    if (accountId) q.set("account_id", accountId);
+    return request<PostIntentStats[]>("/analytics/posts?" + q, { signal });
   },
-  postDetail: (postId: number) => request<PostDetail>(`/analytics/posts/${postId}`),
+  postDetail: (id: number, signal?: AbortSignal) =>
+    request<PostDetail>("/analytics/posts/" + id, { signal }),
 };

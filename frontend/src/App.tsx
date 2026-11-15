@@ -1,185 +1,693 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { api } from "./api/client";
-import type { PostDetail, PostIntentStats, PostSortKey, SocialAccount } from "./api/types";
-import { AccountBar } from "./domains/accounts/AccountBar";
-import { PostDetailPanel } from "./domains/posts/PostDetailPanel";
-import { PostRanking, SORT_LABELS } from "./domains/posts/PostRanking";
+import { parseTimestamp } from "./shared/time";
+import type { DataMode } from "./api/source";
+import type { Intent } from "./api/types";
+import { useWorkspace, useEvidence } from "./domains/accounts/useWorkspace";
+import { Connections } from "./domains/accounts/Connections";
+import {
+  Profile,
+  emptyProfile,
+  lingoProfile,
+  type BrandProfile,
+} from "./domains/accounts/Profile";
+import { Landing } from "./domains/onboarding/Landing";
+import { Dashboard } from "./domains/dashboard/Dashboard";
+import { PostsView } from "./domains/posts/PostsView";
+import { DetailDialog } from "./domains/posts/DetailDialog";
+import { Insights } from "./domains/insights/Insights";
+import { Analytics } from "./domains/analytics/Analytics";
+import { Conversations } from "./domains/community/Conversations";
+import { aggregate, INTENTS, PIR_DEFINITION } from "./domains/analytics/model";
+import { Button, Empty, Heading, Icon, Metric } from "./shared/ui";
+import { readStored, saveStored, safeExternalUrl } from "./shared/storage";
+import {
+  formatCount as count,
+  formatPercent as percent,
+} from "./shared/format";
 
-// The webhooks (F2) add comments in real time: refresh the data at this interval.
-const REFRESH_MS = 10_000;
-
-// The URL hash keeps the selection: `#account=<id>&post=<id>`.
-function readHash(): { accountId: string | null; postId: number | null } {
-  const params = new URLSearchParams(window.location.hash.slice(1));
-  const post = params.get("post");
-  return { accountId: params.get("account"), postId: post && /^\d+$/.test(post) ? Number(post) : null };
+const nav = [
+  ["dashboard", "Dashboard"],
+  ["posts", "Posts"],
+  ["insights", "Insights"],
+  ["conversations", "Conversations"],
+  ["analytics", "Analytics"],
+] as const;
+const routes = new Set([
+  ...nav.map(([id]) => id),
+  "landing",
+  "brand",
+  "connections",
+  "profile",
+  "data",
+]);
+function readRoute() {
+  const [path, search = ""] = window.location.hash
+    .replace(/^#\//, "")
+    .split("?");
+  return {
+    view: routes.has(path) ? path : "landing",
+    params: new URLSearchParams(search),
+  };
 }
-
-export function App() {
-  const [accounts, setAccounts] = useState<SocialAccount[]>([]);
-  const [accountId, setAccountId] = useState<string | null>(() => readHash().accountId);
-  const [sort, setSort] = useState<PostSortKey>("intent_score");
-  const [minComments, setMinComments] = useState(0);
-  const [stats, setStats] = useState<PostIntentStats[]>([]);
-  const [selectedId, setSelectedId] = useState<number | null>(() => readHash().postId);
-  const [detail, setDetail] = useState<PostDetail | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
-  const [notice, setNotice] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
-  const [autoRefresh, setAutoRefresh] = useState(true);
-
-  const loadAccounts = useCallback(async (sync: boolean) => {
-    const list = await api.listAccounts(sync);
-    setAccounts(list);
-    setAccountId((current) => current ?? list.find((a) => !a.is_demo)?.id ?? list[0]?.id ?? null);
+function initialMode(): DataMode {
+  const q = new URLSearchParams(location.search);
+  if (q.has("connected") || q.has("error")) return "live";
+  if (q.get("demo") === "1") return "demo";
+  return readStored<string>("signal:mode", "demo") === "live" ? "live" : "demo";
+}
+function profileFor(key: string, fallback: BrandProfile) {
+  const value = readStored<BrandProfile>(key, fallback);
+  return value &&
+    Object.keys(fallback).every(
+      (k) => typeof value[k as keyof BrandProfile] === "string",
+    )
+    ? value
+    : fallback;
+}
+export default function App() {
+  const [route, setRoute] = useState(readRoute),
+    [mode, setMode] = useState<DataMode>(initialMode),
+    [revision, setRevision] = useState(0),
+    [query, setQuery] = useState(""),
+    [period, setPeriod] = useState("all"),
+    [menuOpen, setMenuOpen] = useState(false),
+    [busy, setBusy] = useState(""),
+    [notice, setNotice] = useState<{ text: string; error?: boolean } | null>(
+      null,
+    ),
+    [profileRevision, setProfileRevision] = useState(0);
+  const workspaceEnabled = !["landing", "brand"].includes(route.view);
+  const preferred = route.params.get("account") ?? "";
+  const workspace = useWorkspace(mode, preferred, revision, workspaceEnabled);
+  const account = workspace.account;
+  const evidence = useEvidence(
+    mode,
+    workspace.posts,
+    route.view === "insights" || route.view === "analytics",
+  );
+  const profileKey =
+    "signal:profile:" + mode + ":" + (account?.id ?? "workspace");
+  const fallback =
+    mode === "demo"
+      ? lingoProfile
+      : profileFor("signal:profile:live:workspace", emptyProfile);
+  const profile = profileFor(profileKey, fallback);
+  void profileRevision;
+  function navigate(
+    view: string,
+    extra: Record<string, string> = {},
+    keepAccount = true,
+  ) {
+    const params = new URLSearchParams(extra);
+    if (keepAccount && !params.has("account") && account)
+      params.set("account", account.id);
+    const suffix = params.size ? "?" + params.toString() : "";
+    location.hash = "/" + view + suffix;
+    setMenuOpen(false);
+  }
+  function changeMode(next: DataMode, destination = "dashboard") {
+    setMode(next);
+    saveStored("signal:mode", next);
+    setQuery("");
+    setPeriod("all");
+    setNotice(null);
+    navigate(destination, {}, false);
+  }
+  useEffect(() => {
+    const update = () => {
+      setRoute(readRoute());
+      setMenuOpen(false);
+    };
+    window.addEventListener("hashchange", update);
+    return () => window.removeEventListener("hashchange", update);
   }, []);
-
-  const loadStats = useCallback(async () => {
-    if (!accountId) return;
-    setStats(await api.rankPosts({ accountId, sort, minComments }));
-  }, [accountId, sort, minComments]);
-
-  const loadDetail = useCallback(async () => {
-    if (selectedId === null) {
-      setDetail(null);
-      return;
+  useEffect(() => {
+    const q = new URLSearchParams(location.search);
+    if (q.has("connected") || q.has("error")) {
+      setMode("live");
+      saveStored("signal:mode", "live");
+      setNotice(
+        q.has("error")
+          ? {
+              text:
+                q.get("error_message") ??
+                "Account connection was not completed.",
+              error: true,
+            }
+          : {
+              text: "Channel authorized. Import its posts and comments to get started.",
+            },
+      );
+      const id = q.get("account_id");
+      location.hash =
+        "/connections" + (id ? "?account=" + encodeURIComponent(id) : "");
+      history.replaceState(null, "", location.pathname + location.hash);
+    } else if (q.get("demo") === "1") {
+      setMode("demo");
+      saveStored("signal:mode", "demo");
+      location.hash = "/dashboard";
+      history.replaceState(null, "", location.pathname + location.hash);
     }
-    setDetail(await api.postDetail(selectedId));
-  }, [selectedId]);
-
-  const showError = (error: unknown) =>
-    setNotice({ kind: "error", text: error instanceof Error ? error.message : String(error) });
-
+  }, []);
   useEffect(() => {
-    loadAccounts(true).catch(showError);
-  }, [loadAccounts]);
-
-  useEffect(() => {
-    loadStats().catch(showError);
-  }, [loadStats]);
-
-  useEffect(() => {
-    loadDetail().catch(() => setSelectedId(null));
-  }, [loadDetail]);
-
-  useEffect(() => {
-    const params = new URLSearchParams();
-    if (accountId) params.set("account", accountId);
-    if (selectedId !== null) params.set("post", String(selectedId));
-    window.history.replaceState(null, "", `#${params.toString()}`);
-  }, [accountId, selectedId]);
-
-  useEffect(() => {
-    if (!autoRefresh) return;
+    if (mode !== "live" || !workspaceEnabled || busy) return;
     const timer = window.setInterval(() => {
-      loadStats().catch(() => undefined);
-      loadDetail().catch(() => undefined);
-    }, REFRESH_MS);
+      if (document.visibilityState === "visible") setRevision((r) => r + 1);
+    }, 15000);
     return () => window.clearInterval(timer);
-  }, [autoRefresh, loadStats, loadDetail]);
-
-  async function runAction(name: string, action: () => Promise<string>) {
-    setBusy(name);
+  }, [mode, workspaceEnabled, busy]);
+  async function perform(label: string, action: () => Promise<void>) {
+    if (busy) return;
+    setBusy(label);
     setNotice(null);
     try {
-      setNotice({ kind: "ok", text: await action() });
-      await loadStats();
-      await loadDetail();
+      await action();
     } catch (error) {
-      showError(error);
+      setNotice({
+        text:
+          error instanceof Error
+            ? error.message
+            : "Something went wrong. Please retry.",
+        error: true,
+      });
     } finally {
-      setBusy(null);
+      setBusy("");
     }
   }
-
-  const onImport = () =>
-    runAction("import", async () => {
-      if (!accountId) return "Aucun compte.";
-      const r = await api.importAccount(accountId);
-      const errors = r.errors.length ? ` · ${r.errors.length} erreur(s)` : "";
-      return `Import : ${r.posts} posts, ${r.comments} commentaires, ${r.dms} DMs, ${r.new_messages} nouveaux. Classification en tâche de fond${errors}.`;
+  function connect(platform: string) {
+    if (mode === "demo") return;
+    void perform("Connecting…", async () => {
+      const result = await api.connect(platform),
+        url = safeExternalUrl(result.auth_url);
+      if (!url || !url.startsWith("https://"))
+        throw new Error("The API did not return a secure authorization URL.");
+      saveStored("signal:mode", "live");
+      window.location.assign(url);
     });
-
-  const onDemo = () =>
-    runAction("demo", async () => {
-      const r = await api.loadDemo();
-      await loadAccounts(false);
-      setAccountId(r.account_id);
-      return `Démo chargée : ${r.posts} posts, ${r.comments} commentaires.`;
+  }
+  function syncAccounts() {
+    void perform("Refreshing accounts…", async () => {
+      await api.syncAccounts();
+      setRevision((r) => r + 1);
+      setNotice({ text: "Accounts refreshed from Zernio." });
     });
-
-  const onClassify = () =>
-    runAction("classify", async () => {
-      const r = await api.runClassification(accountId ?? undefined);
-      return r.classified === 0
-        ? "Tous les messages sont déjà classés."
-        : `${r.classified} messages classés (${r.escalated} par le grand modèle, ${r.fallback} par l'heuristique).`;
+  }
+  function importAccount(id: string) {
+    if (mode === "demo") {
+      navigate("dashboard");
+      return;
+    }
+    void perform("Importing posts & comments…", async () => {
+      const result = await api.importAccount(id);
+      setRevision((r) => r + 1);
+      navigate("dashboard", { account: id }, false);
+      setNotice({
+        text: result.errors.length
+          ? "Import partially completed: " + result.errors.join(" · ")
+          : "Imported " +
+            result.posts +
+            " posts and " +
+            result.comments +
+            " comments. Classification will update automatically.",
+        error: result.errors.length > 0,
+      });
     });
-
-  const onAccountChange = (id: string) => {
-    setAccountId(id);
-    setSelectedId(null);
-  };
-
+  }
+  function classify() {
+    if (!account || mode === "demo") return;
+    void perform("Classifying comments…", async () => {
+      const r = await api.runClassification(account.id);
+      setRevision((v) => v + 1);
+      setNotice({
+        text: r.classified + " messages classified. " + r.failed + " failed.",
+        error: r.failed > 0,
+      });
+    });
+  }
+  function saveProfile(value: BrandProfile) {
+    const key =
+      route.view === "brand"
+        ? "signal:profile:" + mode + ":workspace"
+        : profileKey;
+    const saved = saveStored(key, value);
+    setProfileRevision((r) => r + 1);
+    if (!saved) {
+      setNotice({
+        text: "Browser storage is unavailable. Profile could not be saved.",
+        error: true,
+      });
+      return;
+    }
+    if (route.view === "brand") navigate("connections", {}, false);
+    else setNotice({ text: "Brand context saved in this browser." });
+  }
+  function openPost(id: number) {
+    navigate(route.view, {
+      ...(route.view === "insights" && route.params.get("intent")
+        ? { intent: route.params.get("intent")! }
+        : {}),
+      post: String(id),
+    });
+  }
+  const currentIntent = route.params.get("intent");
+  const intent: Intent | "all" = INTENTS.includes(currentIntent as Intent)
+    ? (currentIntent as Intent)
+    : "all";
+  const filteredPosts = workspace.posts.filter(
+    (p) =>
+      period === "all" ||
+      (p.post.created_time &&
+        parseTimestamp(p.post.created_time) >=
+          Date.now() - Number(period) * 86400000),
+  );
+  const total = aggregate(workspace.posts);
+  const rawPost = route.params.get("post"),
+    postId = rawPost && /^\d+$/.test(rawPost) ? Number(rawPost) : null;
+  const displayName = profile.name || account?.username || "Your brand";
+  function search(event: FormEvent) {
+    event.preventDefault();
+    if (!["posts", "insights"].includes(route.view)) navigate("posts");
+  }
+  if (route.view === "landing")
+    return (
+      <Landing
+        onDemo={() => changeMode("demo")}
+        onStart={() => changeMode("live", "brand")}
+        onResume={() => navigate("dashboard", {}, false)}
+      />
+    );
+  if (route.view === "brand")
+    return (
+      <div className="onboarding">
+        <header>
+          <a href="#/landing" className="wordmark">
+            signal
+          </a>
+          <span className="muted small">
+            01 Brand · 02 Channels · 03 Import
+          </span>
+          <Button onClick={() => changeMode("demo")}>Try demo</Button>
+        </header>
+        <main>
+          <Profile
+            key={mode}
+            initial={fallback}
+            onSave={saveProfile}
+            onSkip={() => navigate("connections", {}, false)}
+            onboarding
+          />
+          {notice && (
+            <div role="alert" className="notice notice--error">
+              {notice.text}
+            </div>
+          )}
+        </main>
+      </div>
+    );
   return (
-    <div className="app">
-      <header className="topbar">
-        <div>
-          <h1>Social Intent Converter</h1>
-          <p className="muted small">Quels posts vendent ? Classement par intention d'achat.</p>
-        </div>
-        <AccountBar
-          accounts={accounts}
-          accountId={accountId}
-          busy={busy}
-          onChange={onAccountChange}
-          onImport={onImport}
-          onDemo={onDemo}
-          onClassify={onClassify}
+    <div className={"app " + (menuOpen ? "menu-is-open" : "")}>
+      {menuOpen && (
+        <button
+          className="mobile-scrim"
+          aria-label="Close navigation"
+          onClick={() => setMenuOpen(false)}
         />
-      </header>
-
-      {notice && (
-        <div className={`notice notice--${notice.kind}`} role={notice.kind === "error" ? "alert" : "status"}>
-          {notice.text}
-          <button type="button" className="btn btn--ghost small" onClick={() => setNotice(null)} aria-label="Fermer">
-            ✕
+      )}
+      <aside className="sidebar">
+        <a className="wordmark" href="#/dashboard">
+          signal
+        </a>
+        <nav aria-label="Main navigation">
+          {nav.map(([id, label]) => (
+            <button
+              key={id}
+              className={route.view === id ? "active" : ""}
+              aria-current={route.view === id ? "page" : undefined}
+              onClick={() => navigate(id)}
+            >
+              <Icon name={id} />
+              {label}
+              {id === "conversations" && mode === "demo" && (
+                <span className="nav-tag">Demo</span>
+              )}
+            </button>
+          ))}
+        </nav>
+        <div className="sidebar-accounts">
+          <span className="eyebrow">YOUR ACCOUNTS</span>
+          {workspace.accounts.map((a) => (
+            <button
+              key={a.id}
+              className={
+                "account-link " + (account?.id === a.id ? "current" : "")
+              }
+              onClick={() => {
+                setQuery("");
+                navigate(route.view, { account: a.id }, false);
+              }}
+            >
+              <span className="account-symbol">
+                {a.platform === "instagram"
+                  ? "◎"
+                  : a.platform.slice(0, 1).toUpperCase()}
+              </span>
+              <span>{a.username ?? a.platform}</span>
+            </button>
+          ))}
+          <button
+            className="account-link"
+            onClick={() => navigate("connections")}
+          >
+            <Icon name="plus" />
+            Connect a channel
           </button>
         </div>
-      )}
-
-      <main className={`layout${detail ? " layout--split" : ""}`}>
-        <section className="panel" aria-label="Classement des posts">
-          <div className="toolbar">
-            <h2>Posts</h2>
-            <label className="field field--inline">
-              <span className="field__label">Trier par</span>
-              <select value={sort} onChange={(e) => setSort(e.target.value as PostSortKey)}>
-                {(Object.keys(SORT_LABELS) as PostSortKey[]).map((key) => (
-                  <option key={key} value={key}>
-                    {SORT_LABELS[key]}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="field field--inline">
-              <span className="field__label">Min. commentaires</span>
-              <input
-                type="number"
-                min={0}
-                value={minComments}
-                onChange={(e) => setMinComments(Math.max(0, Number(e.target.value) || 0))}
-              />
-            </label>
-            <label className="field field--inline checkbox">
-              <input type="checkbox" checked={autoRefresh} onChange={(e) => setAutoRefresh(e.target.checked)} />
-              <span>Temps réel</span>
-            </label>
+        <div className="sidebar-bottom">
+          <button
+            className={route.view === "profile" ? "active" : ""}
+            onClick={() => navigate("profile")}
+          >
+            <Icon name="settings" />
+            Enrich profile
+          </button>
+          <button
+            className={route.view === "data" ? "active" : ""}
+            onClick={() => navigate("data")}
+          >
+            <Icon name="help" />
+            Data & definitions
+          </button>
+          <label className="mode-select">
+            <span>Workspace</span>
+            <select
+              aria-label="Data mode"
+              disabled={!!busy}
+              value={mode}
+              onChange={(e) => changeMode(e.target.value as DataMode)}
+            >
+              <option value="demo">Offline demo</option>
+              <option value="live">Connected accounts</option>
+            </select>
+          </label>
+          <div className="sidebar-brand">
+            <span className="avatar">{displayName[0].toUpperCase()}</span>
+            <span>
+              {displayName}
+              <small>
+                {mode === "demo" ? "Demo workspace" : "Local workspace"}
+              </small>
+            </span>
           </div>
-          <PostRanking stats={stats} selectedId={selectedId} onSelect={setSelectedId} />
-        </section>
-
-        {detail && <PostDetailPanel detail={detail} onClose={() => setSelectedId(null)} />}
-      </main>
+        </div>
+      </aside>
+      <div className="workspace">
+        <header className="topbar">
+          <Button
+            className="mobile-menu"
+            aria-expanded={menuOpen}
+            aria-label="Open navigation"
+            onClick={() => setMenuOpen(true)}
+          >
+            ☰
+          </Button>
+          <form className="global-search" onSubmit={search}>
+            <Icon name="search" />
+            <input
+              aria-label="Search posts or comments"
+              placeholder="Search a post, topic or comment…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+            {query && (
+              <button
+                type="button"
+                aria-label="Clear search"
+                onClick={() => setQuery("")}
+              >
+                ×
+              </button>
+            )}
+          </form>
+          <span className={"pill " + (mode === "demo" ? "pill--demo" : "")}>
+            {mode === "demo" ? "Demo" : "Connected"}
+          </span>
+          <Button
+            aria-label="Brand settings"
+            onClick={() => navigate("profile")}
+          >
+            <Icon name="settings" />
+          </Button>
+        </header>
+        <main className="main">
+          <div className="brand-bar">
+            <div className="brand-identity">
+              <span className="avatar avatar--large">
+                {displayName[0].toUpperCase()}
+              </span>
+              <div>
+                <div className="brand-title">
+                  <h2>{displayName}</h2>
+                  {account && (
+                    <span className="pill">
+                      {account.platform === "instagram" && (
+                        <Icon name="instagram" />
+                      )}
+                      {account.platform}
+                    </span>
+                  )}
+                </div>
+                <p>
+                  {mode === "demo"
+                    ? "Language learning · Demonstration data"
+                    : account?.username
+                      ? "@" + account.username.replace(/^@/, "")
+                      : "Connect a channel to begin"}
+                </p>
+              </div>
+            </div>
+            <div className="brand-controls">
+              {["dashboard", "posts"].includes(route.view) && (
+                <label className="filter">
+                  <Icon name="calendar" />
+                  <select
+                    aria-label="Post publication date"
+                    value={period}
+                    onChange={(e) => setPeriod(e.target.value)}
+                  >
+                    <option value="all">All imported posts</option>
+                    <option value="28">Published in 28 days</option>
+                    <option value="90">Published in 90 days</option>
+                  </select>
+                </label>
+              )}
+              <Button
+                disabled={!!busy || workspace.loading}
+                onClick={() =>
+                  mode === "demo"
+                    ? setNotice({
+                        text: "Demo data is local and ready to explore.",
+                      })
+                    : account
+                      ? importAccount(account.id)
+                      : navigate("connections")
+                }
+              >
+                {busy ||
+                  "↻ " + (mode === "demo" ? "Demo data" : "Sync content")}
+              </Button>
+            </div>
+          </div>
+          {notice && (
+            <div
+              className={"notice " + (notice.error ? "notice--error" : "")}
+              role={notice.error ? "alert" : "status"}
+            >
+              <span>{notice.text}</span>
+              <button
+                aria-label="Dismiss notification"
+                onClick={() => setNotice(null)}
+              >
+                ×
+              </button>
+            </div>
+          )}
+          {workspace.error && (
+            <div className="notice notice--error" role="alert">
+              <span>{workspace.error}</span>
+              <Button onClick={() => setRevision((r) => r + 1)}>Retry</Button>
+              <Button onClick={() => changeMode("demo")}>
+                Try offline demo
+              </Button>
+            </div>
+          )}
+          {route.view === "connections" ? (
+            <Connections
+              mode={mode}
+              accounts={workspace.accounts}
+              busy={!!busy}
+              onConnect={connect}
+              onSync={syncAccounts}
+              onLive={() => changeMode("live", "connections")}
+              onImport={importAccount}
+              onDemo={() => changeMode("demo")}
+              onHome={() => navigate("dashboard")}
+            />
+          ) : route.view === "profile" ? (
+            <Profile key={profileKey} initial={profile} onSave={saveProfile} />
+          ) : route.view === "data" ? (
+            <>
+              <Heading
+                title="Data & definitions"
+                subtitle="Know what every number represents."
+              />
+              <div className="metrics-grid">
+                <Metric label="Audience comments" value={count(total.total)} />
+                <Metric
+                  label="Classification coverage"
+                  value={percent(
+                    total.total ? total.classified / total.total : null,
+                  )}
+                />
+                <Metric label="Needs review" value={count(total.review)} />
+              </div>
+              <div className="panel definitions">
+                <h2>Purchase intent rate</h2>
+                <p>{PIR_DEFINITION}</p>
+                <h2>Intent score</h2>
+                <p>
+                  (3 × purchase intent + 2 × pre-purchase questions +
+                  objections) ÷ audience comments. Range: 0–3. This is a
+                  prioritization score, not a conversion probability.
+                </p>
+                <h2>Scope and missing data</h2>
+                <p>
+                  Only imported, incoming audience comments count. Brand replies
+                  and DMs are excluded. Unclassified comments remain in the
+                  denominator. An em dash means the platform has not provided
+                  the metric; zero means an observed zero.
+                </p>
+                <h2>Live capabilities</h2>
+                <p>
+                  Channel authorization, imports, classification, post ranking
+                  and comment evidence are connected to F1–F6. Live DMs,
+                  publishing, advertising and user authentication are not part
+                  of these modules.
+                </p>
+                <h2>Refresh</h2>
+                <p>
+                  Connected-account data is read from your backend every 15
+                  seconds while this tab is visible. Sync content imports fresh
+                  platform data. Classification can continue after an import
+                  completes.
+                </p>
+                <div className="actions">
+                  <Button
+                    disabled={mode === "demo" || !account || !!busy}
+                    onClick={classify}
+                  >
+                    Classify pending messages
+                  </Button>
+                  <Button onClick={() => navigate("connections")}>
+                    Manage connections
+                  </Button>
+                </div>
+              </div>
+            </>
+          ) : workspace.loading && !workspace.posts.length ? (
+            <div className="loading-state" role="status">
+              <span className="spinner" />
+              Loading your workspace…
+            </div>
+          ) : !account ? (
+            <Empty
+              title={
+                workspace.error
+                  ? "Your backend is unavailable"
+                  : "Your workspace is ready for its first channel"
+              }
+              action={
+                <div className="actions">
+                  <Button primary onClick={() => navigate("connections")}>
+                    Connect a channel
+                  </Button>
+                  <Button onClick={() => changeMode("demo")}>
+                    Explore demo
+                  </Button>
+                </div>
+              }
+            >
+              Import an account’s posts and comments to unlock your dashboard.
+            </Empty>
+          ) : !workspace.posts.length && route.view !== "conversations" ? (
+            <Empty
+              title="No posts imported yet"
+              action={
+                <Button
+                  primary
+                  disabled={!!busy}
+                  onClick={() => importAccount(account.id)}
+                >
+                  Import posts & comments
+                </Button>
+              }
+            >
+              Your channel is connected. Import its content to calculate your
+              first signals.
+            </Empty>
+          ) : route.view === "dashboard" ? (
+            <Dashboard
+              posts={filteredPosts}
+              onOpen={openPost}
+              onInsight={(i) => navigate("insights", { intent: i })}
+            />
+          ) : route.view === "posts" ? (
+            <PostsView posts={filteredPosts} query={query} onOpen={openPost} />
+          ) : route.view === "insights" ? (
+            <Insights
+              key={intent}
+              posts={workspace.posts}
+              details={evidence.items}
+              loading={evidence.loading}
+              error={evidence.error}
+              initial={intent}
+              query={query}
+              onOpen={openPost}
+            />
+          ) : route.view === "analytics" ? (
+            <Analytics
+              posts={workspace.posts}
+              details={evidence.items}
+              loading={evidence.loading}
+              error={evidence.error}
+            />
+          ) : (
+            <Conversations mode={mode} onPosts={() => navigate("posts")} />
+          )}
+          <footer className="workspace-footer">
+            <span>
+              {mode === "demo"
+                ? "Sample data · Nothing is sent to a social platform"
+                : "Imported account data · Intent does not equal a purchase"}
+            </span>
+            <button className="text-link" onClick={() => navigate("data")}>
+              How we calculate signals ↗
+            </button>
+          </footer>
+        </main>
+      </div>
+      {postId !== null && account && (
+        <DetailDialog
+          id={postId}
+          accountId={account.id}
+          mode={mode}
+          onClose={() => {
+            const p = Object.fromEntries(route.params);
+            delete p.post;
+            navigate(route.view, p);
+          }}
+        />
+      )}
     </div>
   );
 }
