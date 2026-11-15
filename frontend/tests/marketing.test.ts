@@ -145,6 +145,18 @@ test("F12 adapter reads exact scope and sends generation only on explicit run", 
     });
     await assert.rejects(liveInsights.latest(a.id, 42), /does not match/);
     assert.ok(calls[2].url.includes("post_id=42"));
+    await assert.rejects(
+      liveInsights.latest(a.id, null, undefined, 77),
+      /does not match/,
+    );
+    assert.ok(calls[3].url.includes("product_id=77"));
+    globalThis.fetch = async (url, init) => {
+      calls.push({ url: String(url), init });
+      return new Response(JSON.stringify({ ...report, product_id: 77 }));
+    };
+    const scoped = await liveInsights.run(a.id, null, undefined, 77);
+    assert.equal(scoped.product_id, 77);
+    assert.equal(JSON.parse(calls[4].init!.body as string).product_id, 77);
     globalThis.fetch = async () =>
       new Response(JSON.stringify({ detail: "No insights" }), { status: 404 });
     assert.equal(await liveInsights.latest(a.id, null), null);
@@ -217,7 +229,10 @@ test("campaign errors never trigger an automatic second create request", async (
     throw new TypeError("Network unavailable");
   };
   try {
-    await assert.rejects(liveAds.create(1, "account", input), /Unable to reach Signal/);
+    await assert.rejects(
+      liveAds.create(1, "account", input),
+      /Unable to reach Signal/,
+    );
     assert.equal(calls, 1);
   } finally {
     globalThis.fetch = original;

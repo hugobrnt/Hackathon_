@@ -1,4 +1,6 @@
 import "./insights.css";
+import { catalogFor, groupCatalog } from "../products/api";
+import type { CatalogProduct } from "../products/types";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   insightCategories,
@@ -34,6 +36,7 @@ interface ReportRow {
 export function Insights({
   mode,
   accounts,
+  catalogAccounts = accounts,
   posts,
   initial,
   query,
@@ -42,6 +45,7 @@ export function Insights({
 }: {
   mode: DataMode;
   accounts: SocialAccount[];
+  catalogAccounts?: SocialAccount[];
   posts: PostIntentStats[];
   initial: Intent | "all";
   query: string;
@@ -56,9 +60,61 @@ export function Insights({
     [loading, setLoading] = useState(true),
     [busy, setBusy] = useState(false),
     [revision, setRevision] = useState(0);
+  const [productKey, setProductKey] = useState("all");
+  const [catalog, setCatalog] = useState<CatalogProduct[]>([]);
+  const [catalogLoading, setCatalogLoading] = useState(true);
+  const [catalogError, setCatalogError] = useState("");
+  const catalogKey = catalogAccounts.map((a) => a.id).join("|");
+  useEffect(() => {
+    const c = new AbortController();
+    setCatalogLoading(true);
+    setCatalogError("");
+    void Promise.all(
+      catalogAccounts.map((a) => catalogFor(mode).list(a.id, c.signal)),
+    )
+      .then((lists) => {
+        if (!c.signal.aborted) setCatalog(lists.flat());
+      })
+      .catch((e) => {
+        if (!c.signal.aborted)
+          setCatalogError(
+            e instanceof Error ? e.message : "Unable to load products.",
+          );
+      })
+      .finally(() => {
+        if (!c.signal.aborted) setCatalogLoading(false);
+      });
+    return () => c.abort();
+  }, [mode, catalogKey, revision]);
+  const products = groupCatalog(catalog);
+  const productGroup = products.find(
+    (group) => group[0].landing_url === productKey,
+  );
+  const productForAccount = (id: string) =>
+    productKey === "all"
+      ? null
+      : productKey === "unassigned"
+        ? 0
+        : (productGroup?.find((p) => p.account_id === id)?.id ?? null);
+  const productTitle =
+    productKey === "all"
+      ? "All products"
+      : productKey === "unassigned"
+        ? "Product to confirm"
+        : (productGroup?.[0].title ?? "Product");
+  const channelKey = accounts.map((a) => a.id).join("|");
+  useEffect(() => {
+    setPostId("all");
+  }, [channelKey]);
   const post = postId === "all" ? null : Number(postId);
   const owner = posts.find((p) => p.post.id === post)?.post.account_id;
-  const selected = accounts.filter((a) => post === null || a.id === owner);
+  const selected = accounts.filter(
+    (a) =>
+      (post === null || a.id === owner) &&
+      (productKey === "all" ||
+        productKey === "unassigned" ||
+        productGroup?.some((p) => p.account_id === a.id)),
+  );
   const accountKey = selected.map((a) => a.id).join("|");
   const source = insightsFor(mode),
     controller = useRef<AbortController | null>(null),
@@ -78,7 +134,12 @@ export function Insights({
             try {
               return {
                 account,
-                report: await source.latest(account.id, post, c.signal),
+                report: await source.latest(
+                  account.id,
+                  post,
+                  c.signal,
+                  productForAccount(account.id),
+                ),
                 error: null,
               };
             } catch (e) {
@@ -100,7 +161,7 @@ export function Insights({
       }
     })();
     return () => c.abort();
-  }, [source, accountKey, post, revision]);
+  }, [source, accountKey, post, productKey, catalog, revision]);
   async function generate() {
     if (working.current || loading) return;
     const c = controller.current;
@@ -110,7 +171,12 @@ export function Insights({
     for (const account of selected) {
       if (c.signal.aborted) break;
       try {
-        const report = await source.run(account.id, post, c.signal);
+        const report = await source.run(
+          account.id,
+          post,
+          c.signal,
+          productForAccount(account.id),
+        );
         if (!c.signal.aborted)
           setRows((old) =>
             old.map((r) =>
@@ -173,7 +239,7 @@ export function Insights({
       <Heading title="Product insights">
         <Button
           primary
-          disabled={loading || busy || !selected.length}
+          disabled={loading || busy || catalogLoading || !selected.length}
           onClick={() => void generate()}
         >
           {busy
@@ -183,110 +249,173 @@ export function Insights({
               : "Generate insights"}
         </Button>
       </Heading>
-      {scope}
-      <div className="section-heading product-insight-heading">
-        <span className="muted small">
-          {loading
-            ? "Loading reports…"
-            : `${reports.length}/${selected.length} channel reports`}
-          {mode === "demo" ? " · Demo" : ""}
-        </span>
-        <label className="filter">
-          <select
-            aria-label="Insights post"
-            value={postId}
-            disabled={busy}
-            onChange={(e) => setPostId(e.target.value)}
-          >
-            <option value="all">All posts</option>
-            {posts.map((p) => (
-              <option key={p.post.id} value={p.post.id}>
-                {p.post.platform} · {p.post.caption || "Untitled post"}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-      {!!failed.length && (
-        <div role="alert" className="notice notice--error">
-          <span>
-            {failed
-              .map(
-                (r) =>
-                  `${r.account.username ?? r.account.platform}: ${r.error}${r.report ? " Showing the previous report." : ""}`,
-              )
-              .join(" ")}
-          </span>
-          <Button disabled={busy} onClick={() => setRevision((n) => n + 1)}>
-            Reload reports
-          </Button>
-        </div>
-      )}
-      {!!missing.length && (
-        <div className="notice">
-          <span>
-            No report yet for{" "}
-            {missing
-              .map((r) => r.account.username ?? r.account.platform)
-              .join(", ")}
-            . Generate insights for the selected scope.
-          </span>
-        </div>
-      )}
-      <div className="metrics-grid">
-        {insightCategories.map((category) => (
-          <Metric
-            key={category}
-            label={labels[category]}
-            value={reports.length ? total(category) : "—"}
-            definition="Classified incoming messages, including comments and DMs. The API analyzes up to 150 messages per category and channel and returns up to 20 themes."
-          />
-        ))}
-      </div>
-      <div className="filter-row chips">
-        <button
-          className={"chip " + (filter === "all" ? "selected" : "")}
-          onClick={() => setFilter("all")}
+      <div className="insights-layout">
+        <aside
+          className="insights-products"
+          aria-label="Filter insights by product"
         >
-          All insights
-        </button>
-        {insightCategories.map((category) => (
+          <span className="eyebrow">PRODUCTS</span>
           <button
-            key={category}
-            data-tour={
-              category === "feature_requests" ? "feature-filter" : undefined
-            }
-            className={"chip " + (filter === category ? "selected" : "")}
-            onClick={() => setFilter(category)}
+            aria-pressed={productKey === "all"}
+            onClick={() => setProductKey("all")}
           >
-            {labels[category]} <span>{total(category)}</span>
+            All products
           </button>
-        ))}
-      </div>
-      {loading ? (
-        <p role="status" className="loading">
-          Loading insights…
-        </p>
-      ) : !visible.length ? (
-        <div className="panel empty-inline">
-          {reports.length
-            ? "No themes match this scope or search."
-            : "Generate your first product insights to see themes and audience quotes."}
-        </div>
-      ) : (
-        <div className="product-insight-list">
-          {visible.map(({ theme, account, report }) => (
-            <ThemeRow
-              key={account.id + ":" + report.run_id + ":" + theme.id}
-              theme={theme}
-              account={account}
-              report={report}
-              mode={mode}
-              onOpen={onOpen}
-            />
+          {products.map((group) => (
+            <button
+              key={group[0].landing_url}
+              aria-pressed={productKey === group[0].landing_url}
+              onClick={() => setProductKey(group[0].landing_url)}
+            >
+              <span>{group[0].title}</span>
+              {!group.some((p) => p.is_active) && <small>Archived</small>}
+            </button>
           ))}
+          <button
+            aria-pressed={productKey === "unassigned"}
+            onClick={() => setProductKey("unassigned")}
+          >
+            Product to confirm
+          </button>
+          {catalogLoading && (
+            <p role="status" className="muted small">
+              Loading products…
+            </p>
+          )}
+          {catalogError && (
+            <div role="alert" className="small">
+              {catalogError}
+              <Button onClick={() => setRevision((n) => n + 1)}>Retry</Button>
+            </div>
+          )}
+          {!catalogLoading && !catalogError && !products.length && (
+            <p className="muted small">Add your catalog in Products.</p>
+          )}
+        </aside>
+        <div className="insights-results">
+          <h2 className="insights-scope-title">{productTitle}</h2>
+          {productKey === "unassigned" && (
+            <p className="muted small">
+              Messages with no product match, or a match that needs
+              confirmation.
+            </p>
+          )}
+          {scope}
+          <div className="section-heading product-insight-heading">
+            <span className="muted small">
+              {loading
+                ? "Loading reports…"
+                : `${reports.length}/${selected.length} channel reports`}
+              {mode === "demo" ? " · Demo" : ""}
+            </span>
+            <label className="filter">
+              <select
+                aria-label="Insights post"
+                value={postId}
+                disabled={busy}
+                onChange={(e) => setPostId(e.target.value)}
+              >
+                <option value="all">All posts</option>
+                {posts.map((p) => (
+                  <option key={p.post.id} value={p.post.id}>
+                    {p.post.platform} · {p.post.caption || "Untitled post"}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          {!!failed.length && (
+            <div role="alert" className="notice notice--error">
+              <span>
+                {failed
+                  .map(
+                    (r) =>
+                      `${r.account.username ?? r.account.platform}: ${r.error}${r.report ? " Showing the previous report." : ""}`,
+                  )
+                  .join(" ")}
+              </span>
+              <Button disabled={busy} onClick={() => setRevision((n) => n + 1)}>
+                Reload reports
+              </Button>
+            </div>
+          )}
+          {!!missing.length && (
+            <div className="notice">
+              <span>
+                No report yet for{" "}
+                {missing
+                  .map((r) => r.account.username ?? r.account.platform)
+                  .join(", ")}
+                . Generate insights for the selected scope.
+              </span>
+            </div>
+          )}
+          <div className="metrics-grid">
+            {insightCategories.map((category) => (
+              <Metric
+                key={category}
+                label={labels[category]}
+                value={reports.length ? total(category) : "—"}
+                definition="Classified incoming messages, including comments and DMs. The API analyzes up to 150 messages per category and channel and returns up to 20 themes."
+              />
+            ))}
+          </div>
+          <div className="filter-row chips">
+            <button
+              className={"chip " + (filter === "all" ? "selected" : "")}
+              onClick={() => setFilter("all")}
+            >
+              All insights
+            </button>
+            {insightCategories.map((category) => (
+              <button
+                key={category}
+                data-tour={
+                  category === "feature_requests" ? "feature-filter" : undefined
+                }
+                data-tour-next={
+                  category === "feature_requests" && filter === category
+                    ? "feature-insight"
+                    : undefined
+                }
+                className={"chip " + (filter === category ? "selected" : "")}
+                onClick={() => setFilter(category)}
+              >
+                {labels[category]} <span>{total(category)}</span>
+              </button>
+            ))}
+          </div>
+          {!selected.length && !catalogLoading ? (
+            <div className="panel empty-inline">
+              This product is not linked to the selected channel or post. Choose
+              another channel.
+            </div>
+          ) : loading ? (
+            <p role="status" className="loading">
+              Loading insights…
+            </p>
+          ) : !visible.length ? (
+            <div className="panel empty-inline">
+              {reports.length
+                ? "No themes match this scope or search."
+                : "Generate your first product insights to see themes and audience quotes."}
+            </div>
+          ) : (
+            <div className="product-insight-list">
+              {visible.map(({ theme, account, report }) => (
+                <ThemeRow
+                  key={account.id + ":" + report.run_id + ":" + theme.id}
+                  theme={theme}
+                  account={account}
+                  report={report}
+                  mode={mode}
+                  onOpen={onOpen}
+                />
+              ))}
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </>
   );
 }
@@ -336,7 +465,11 @@ function ThemeRow({
           reportTourAction("feature-request");
       }}
     >
-      <summary>
+      <summary
+        data-tour={
+          t.category === "feature_requests" ? "feature-insight" : undefined
+        }
+      >
         <span className="insight-category">{labels[t.category]}</span>
         <span className="product-insight-title">{t.title}</span>
         <span className="insight-count">
@@ -363,7 +496,18 @@ function ThemeRow({
                 : "AI grouping"}
           </span>
         </div>
-        {t.summary && <p className="theme-summary">{t.summary}</p>}
+        {t.summary && (
+          <section className="signal-analysis">
+            <span className="pill">
+              {mode === "demo"
+                ? "Signal analysis · demo"
+                : heuristic
+                  ? "Signal topic summary"
+                  : "Signal AI analysis"}
+            </span>
+            <p className="theme-summary">{t.summary}</p>
+          </section>
+        )}
         {!!t.quotes.length && (
           <div className="theme-quotes">
             {t.quotes.map((q, i) => (

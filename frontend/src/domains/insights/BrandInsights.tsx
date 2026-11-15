@@ -2,8 +2,6 @@ import { useMemo } from "react";
 import type { DataMode } from "../../api/source";
 import { useBrandPosts } from "../accounts/useBrandPosts";
 import type { SocialAccount, Intent } from "../../api/types";
-import { aggregate } from "../analytics/model";
-import { formatPercent } from "../../shared/format";
 import { Insights } from "./Insights";
 import { Button } from "../../shared/ui";
 export function BrandInsights({
@@ -56,7 +54,8 @@ export function BrandInsights({
           </select>
         </label>
         <span className="muted small">
-          {posts.length} posts · {selected.filter((r) => !r.error).length}/
+          {posts.length} imported posts ·{" "}
+          {selected.filter((r) => !r.error).length}/
           {channel === "all" ? accounts.length : 1} channels loaded
         </span>
       </div>
@@ -72,50 +71,12 @@ export function BrandInsights({
           <Button onClick={retry}>Retry</Button>
         </div>
       )}
-      {channel === "all" && accounts.length > 1 && (
-        <details className="channel-breakdown">
-          <summary>Break down by channel</summary>
-          <div className="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>Channel</th>
-                  <th>Comments</th>
-                  <th>Purchase intent</th>
-                  <th>Feature requests</th>
-                  <th>Problems</th>
-                </tr>
-              </thead>
-              <tbody>
-                {results.map((r) => {
-                  const a = aggregate(r.posts);
-                  return (
-                    <tr key={r.account.id}>
-                      <td>
-                        <button
-                          className="text-link"
-                          onClick={() => onChannelChange(r.account.id)}
-                        >
-                          {r.account.platform} · @{r.account.username} ↗
-                        </button>
-                      </td>
-                      <td>{r.error ? "—" : a.total}</td>
-                      <td>{r.error ? "—" : formatPercent(a.rate)}</td>
-                      <td>{r.error ? "—" : a.intents.feature_request}</td>
-                      <td>{r.error ? "—" : a.intents.support_complaint}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </details>
-      )}
     </>
   );
   return (
     <Insights
-      key={channel + ":" + initial}
+      key={initial}
+      catalogAccounts={accounts}
       posts={posts}
       mode={mode}
       accounts={accounts.filter((a) => channel === "all" || a.id === channel)}

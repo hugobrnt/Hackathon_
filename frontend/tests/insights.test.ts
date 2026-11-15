@@ -75,3 +75,46 @@ test("cross-channel evidence remains attributed and narrowing to one post reduce
     assert.deepEqual(combined.channels, ["instagram", "linkedin"]);
   }
 });
+
+test("product reports isolate evidence and preserve the global demo report", async () => {
+  const { demoInsights } = await import("../src/domains/demo/insights.ts");
+  const { configureDemo, demoAccounts, demoPosts, demoPost } = await import(
+    "../src/domains/demo/workspace.ts"
+  );
+  const { readDemoCatalog } = await import(
+    "../src/domains/products/demo-catalog.ts"
+  );
+  configureDemo(["instagram", "linkedin"]);
+  const account = demoAccounts()[0].id;
+  const products = readDemoCatalog(account);
+  const scopes = [null, ...products.map((p) => p.id), 0];
+  const comments = demoPosts(account).flatMap(
+    (p) => demoPost(p.post.id).comments,
+  );
+  const seen = new Set<number>();
+  for (const product of scopes) {
+    const report = await demoInsights.run(account, null, undefined, product);
+    assert.equal(report.product_id, product);
+    const ids = report.categories.flatMap((c) =>
+      c.themes.flatMap((t) => t.message_ids),
+    );
+    for (const id of ids) {
+      const c = comments.find((m) => m.id === id)!.classification!;
+      if (product === null) continue;
+      assert.ok(!seen.has(id));
+      seen.add(id);
+      if (product === 0)
+        assert.ok(!c.product_id || (c.product_confidence ?? 0) < 0.7);
+      else {
+        assert.equal(c.product_id, product);
+        assert.ok((c.product_confidence ?? 0) >= 0.7);
+      }
+    }
+  }
+  const global = await demoInsights.latest(account, null);
+  assert.equal(global!.product_id, null);
+  assert.equal(
+    seen.size,
+    global!.categories.reduce((n, c) => n + c.total_messages, 0),
+  );
+});
