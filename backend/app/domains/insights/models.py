@@ -41,3 +41,33 @@ class InsightTheme(SQLModel, table=True):
     post_ids: list[int] = Field(default_factory=list, sa_column=Column(JSON, nullable=False))
     writer: str
     generated_at: datetime = Field(default_factory=utc_now)
+
+
+class PostFormat(StrEnum):
+    reel = "reel"
+    carousel = "carousel"
+    image = "image"
+    story = "story"
+
+
+class PostIdea(SQLModel, table=True):
+    """A post idea generated from the insights (F14). One generation stores 3 ideas."""
+
+    __tablename__ = "post_ideas"
+
+    id: int | None = Field(default=None, primary_key=True)
+    generation_id: str = Field(index=True)
+    account_id: str = Field(index=True)
+    insights_run_id: str
+    title: str
+    format: PostFormat
+    hook: str = Field(description="First line or first seconds of the post.")
+    outline: list[str] = Field(default_factory=list, sa_column=Column(JSON, nullable=False))
+    caption: str
+    call_to_action: str
+    rationale: str = Field(description="Which insight the idea answers, and why it can sell.")
+    category: InsightCategory
+    theme_ids: list[int] = Field(default_factory=list, sa_column=Column(JSON, nullable=False))
+    product_id: int | None = None
+    writer: str
+    created_at: datetime = Field(default_factory=utc_now)
