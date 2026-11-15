@@ -19,3 +19,7 @@ class MessageClassification(SQLModel, table=True):
     model: str
     needs_review: bool = Field(default=False, description="A human must validate it before an automatic action.")
     classified_at: datetime = Field(default_factory=utc_now)
+    # F7 ter: the product of the catalog that the message reacts to.
+    product_id: int | None = Field(default=None, index=True)
+    product_confidence: float | None = None
+    product_reason: str | None = None

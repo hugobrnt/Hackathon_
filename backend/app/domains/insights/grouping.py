@@ -47,7 +47,8 @@ Rules:
 not a vague topic. Two different ideas go in two themes.
 - Each message index goes in at most one theme. Ignore a message without a clear idea.
 - title: at most 8 words, in the language of the messages (French by default).
-- summary: one sentence that explains the theme for the founder, in the same language.
+- summary: one complete sentence that describes the insight for the founder, in the same language. \
+Example: "Plusieurs personnes trouvent le prix trop élevé pour un hoodie." Do not quote a username.
 - Use only the indexes that you receive.
 Answer with the JSON object only."""
 
@@ -114,9 +115,13 @@ def group_heuristic(items: list[GroupItem]) -> GroupResult:
             groups[best][1].append(item)
         else:
             groups.append((set(tokens), [item]))
-    themes = [
-        Theme(title=members[0].text[:60], summary="", indexes=[m.index for m in members]) for _, members in groups
-    ]
+    themes = []
+    for _, members in groups:
+        shared = set.intersection(*(_tokens(m.text) for m in members)) if len(members) > 1 else _tokens(members[0].text)
+        keywords = ", ".join(sorted(shared)[:4]) or members[0].text[:40]
+        count = len(members)
+        summary = f"{count} message{'s' if count > 1 else ''} sur le même sujet : {keywords}."
+        themes.append(Theme(title=members[0].text[:60], summary=summary, indexes=[m.index for m in members]))
     return GroupResult(themes=sorted(themes, key=lambda t: len(t.indexes), reverse=True), writer="heuristic")
 
 

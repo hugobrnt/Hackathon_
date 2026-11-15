@@ -9,6 +9,9 @@ from app.core.db import get_engine, get_session
 from app.core.errors import ZERNIO_ERROR_RESPONSES, ErrorResponse
 from app.domains.classification.classifiers import Classifier, get_classifier
 from app.domains.classification.service import classify_in_background
+from app.domains.products.matching import ProductMatcher, get_product_matcher
+from app.domains.conversations.agent import ConversationAgent, get_conversation_agent
+from app.domains.conversations.service import reply_in_background
 from app.domains.outreach.service import auto_dm_in_background
 from app.domains.outreach.writers import DmWriter, get_dm_writer
 from app.domains.webhooks import service
@@ -58,8 +61,10 @@ async def receive_zernio_webhook(
     background_tasks: BackgroundTasks,
     engine: Annotated[Engine, Depends(get_engine)],
     classifier: Annotated[Classifier, Depends(get_classifier)],
+    matcher: Annotated[ProductMatcher, Depends(get_product_matcher)],
     dm_writer: Annotated[DmWriter, Depends(get_dm_writer)],
     zernio_factory: Annotated[ZernioClientFactory, Depends(get_zernio_client_factory)],
+    agent: Annotated[ConversationAgent, Depends(get_conversation_agent)],
     x_zernio_signature: Annotated[str | None, Header()] = None,
 ) -> WebhookAck:
     if not settings.zernio_webhook_secret:
@@ -74,9 +79,11 @@ async def receive_zernio_webhook(
         raise HTTPException(status_code=422, detail=f"Invalid payload: {exc}") from exc
     if ack.message_ids:
         # Answer Zernio at once; the LLM call runs after the response.
-        background_tasks.add_task(classify_in_background, engine, classifier, ack.message_ids)
+        background_tasks.add_task(classify_in_background, engine, classifier, ack.message_ids, None, matcher)
         # The tasks run in order: the auto-DM (F7) reads the classification of the step before.
         background_tasks.add_task(auto_dm_in_background, engine, dm_writer, zernio_factory, ack.message_ids)
+        # F13: the agent answers the new DMs of its conversations (after their classification).
+        background_tasks.add_task(reply_in_background, engine, agent, zernio_factory, ack.message_ids)
     return ack
 
 

@@ -89,7 +89,12 @@ async def run_for_post(post_id: int, session: SessionDep, writer: WriterDep, zer
     description="Writes the DM text for this comment without sending it.",
     responses=_errors(404, 409),
 )
-async def preview(message_id: int, session: SessionDep, writer: WriterDep) -> DmDraft:
+async def preview(
+    message_id: int,
+    session: SessionDep,
+    writer: WriterDep,
+    product_id: Annotated[int | None, Query(description="Force a product. Default: the product found (F7 ter).")] = None,
+) -> DmDraft:
     message = session.get(Message, message_id)
     if message is None:
         raise HTTPException(status_code=404, detail="Message not found.")
@@ -97,7 +102,7 @@ async def preview(message_id: int, session: SessionDep, writer: WriterDep) -> Dm
     if classification is None:
         raise HTTPException(status_code=409, detail="The message is not classified yet.")
     try:
-        return await service.draft_for(session, message, classification, writer)
+        return await service.draft_for(session, message, classification, writer, product_id)
     except service.OutreachError as exc:
         raise _raise(exc) from exc
 
@@ -122,14 +127,28 @@ def list_attempts(
     "/auto-dm/attempts/{attempt_id}/approve",
     response_model=DmAttemptRead,
     summary="Approve and send a pending DM",
-    description="Sends a DM in `pending_approval` (or a `failed` DM marked `retryable`). The text can be edited.",
+    description=(
+        "Sends a DM in `pending_approval` (or a `failed` DM marked `retryable`). The text can be edited. "
+        "If the product was not identified, give `product_id`: the DM is written again for this product."
+    ),
     responses={**ZERNIO_ERROR_RESPONSES, **_errors(400, 404, 409)},
 )
 async def approve(
-    attempt_id: int, session: SessionDep, zernio: ZernioDep, payload: ApproveRequest | None = None
+    attempt_id: int,
+    session: SessionDep,
+    zernio: ZernioDep,
+    writer: WriterDep,
+    payload: ApproveRequest | None = None,
 ) -> DmAttemptRead:
     try:
-        attempt = await service.approve(session, attempt_id, payload.text if payload else None, zernio)
+        attempt = await service.approve(
+            session,
+            attempt_id,
+            payload.text if payload else None,
+            zernio,
+            product_id=payload.product_id if payload else None,
+            writer=writer,
+        )
     except service.OutreachError as exc:
         raise _raise(exc) from exc
     return service.to_read(attempt, session)

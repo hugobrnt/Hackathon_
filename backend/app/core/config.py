@@ -40,6 +40,9 @@ class Settings(BaseSettings):
     # Ads (F9): guardrail of the PRD, a boost cannot spend more than this total amount.
     ads_max_total_budget: float = 50.0
 
+    # F13: automatic replies of the agent in one conversation, before a human takes over.
+    agent_max_replies: int = 3
+
     database_url: str = f"sqlite:///{BACKEND_DIR / 'data.db'}"
     public_base_url: str = "http://localhost:8000"
     # Public base URL of the short links in the DMs (F8). Default: PUBLIC_BASE_URL.

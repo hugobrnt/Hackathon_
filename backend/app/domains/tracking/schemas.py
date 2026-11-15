@@ -13,6 +13,7 @@ class TrackedLinkRead(BaseModel):
     message_id: int
     recipient_id: str | None
     intent: str | None
+    product_id: int | None = None
     destination_url: str
     click_count: int
     bot_hits: int
@@ -29,9 +30,19 @@ class PostClickStats(BaseModel):
     click_through_rate: float = Field(description="links_clicked ÷ dms_sent (PRD KPI « Taux de clic DM »).")
 
 
+class ProductClickStats(BaseModel):
+    product_id: int | None = Field(description="None: DMs sent before the catalog or without a product.")
+    product_title: str | None
+    dms_sent: int
+    links_clicked: int
+    clicks: int
+    click_through_rate: float
+
+
 class TrackingStats(BaseModel):
     dms_sent: int
     links_clicked: int
     clicks: int
     click_through_rate: float
     posts: list[PostClickStats]
+    products: list[ProductClickStats] = Field(default_factory=list, description="Click-through rate per product.")

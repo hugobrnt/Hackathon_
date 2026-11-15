@@ -8,7 +8,18 @@ from app.domains.insights.models import InsightCategory
 class InsightsRunRequest(BaseModel):
     account_id: str
     post_id: int | None = Field(default=None, description="Only the messages of this post. Default: all the account.")
+    product_id: int | None = Field(default=None, description="Only the messages about this product (F7 ter).")
     top: int = Field(default=5, ge=1, le=20, description="Number of themes returned per category.")
+
+
+class InsightComment(BaseModel):
+    id: int
+    kind: str = Field(description="`comment` or `dm`.")
+    text: str
+    author_name: str | None
+    post_id: int | None
+    product_id: int | None
+    created_time: datetime | None
 
 
 class InsightThemeRead(BaseModel):
@@ -17,9 +28,10 @@ class InsightThemeRead(BaseModel):
     id: int
     category: InsightCategory
     title: str
-    summary: str
+    summary: str = Field(description="One sentence that describes the insight.")
     mention_count: int = Field(description="Number of comments and DMs in the theme.")
-    quotes: list[str] = Field(description="Real quotes of the audience, without usernames (at most 3).")
+    quotes: list[str] = Field(description="Short display: at most 3 real quotes, without usernames.")
+    comments: list[InsightComment] = Field(default_factory=list, description="All the messages of the theme.")
     message_ids: list[int]
     post_ids: list[int]
 

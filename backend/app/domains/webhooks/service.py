@@ -10,6 +10,7 @@ from sqlmodel import Session
 from app.domains.accounts.models import SocialAccount
 from app.domains.accounts.service import upsert_account
 from app.domains.content import repository
+from app.domains.conversations import service as conversations
 from app.domains.content.models import MessageDirection, MessageKind
 from app.domains.webhooks.models import WebhookEvent
 from app.domains.webhooks.schemas import (
@@ -108,6 +109,9 @@ def _handle_message(session: Session, event: MessageEvent) -> list[int]:
         created_time=dm.sent_at,
     )
     session.flush()
+    if outgoing and dm.platform_message_id:
+        # F13: the `message.sent` of an auto-DM gives the Zernio id of its conversation.
+        conversations.link_outgoing(session, dm.platform_message_id, dm.conversation_id)
     return [message.id] if created and message.id is not None else []
 
 

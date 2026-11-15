@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.domains.classification.taxonomy import Intent
 from app.domains.outreach.models import DmStatus
@@ -9,10 +9,10 @@ from app.domains.products.models import BusinessType
 
 class AutoDmSettingsUpdate(BaseModel):
     enabled: bool
-    landing_url: HttpUrl | None = Field(
+    product_id: int | None = Field(
         default=None,
-        description="Optional page for this post only. Default: the landing URL of the account product (F7 bis). "
-        "The product (URL + description) stays required.",
+        description="Optional: force this product of the catalog for all the DMs of this post. "
+        "Default: the product found for each comment (F7 ter).",
     )
     require_approval: bool = Field(default=False, description="F17: all DMs wait for a human approval.")
 
@@ -22,7 +22,7 @@ class AutoDmSettingsRead(BaseModel):
 
     post_id: int
     enabled: bool
-    landing_url: str | None
+    product_id: int | None
     require_approval: bool
     updated_at: datetime
 
@@ -39,6 +39,8 @@ class DmDraftInput(BaseModel):
 
 
 class DmDraft(BaseModel):
+    product_id: int | None = None
+    product_title: str | None = None
     text: str
     writer: str = Field(description="Model that wrote the text, or `template`.")
     tracked_link_code: str | None = None
@@ -63,6 +65,8 @@ class DmAttemptRead(BaseModel):
     text: str
     writer: str
     zernio_message_id: str | None
+    product_id: int | None = None
+    product_title: str | None = None
     tracked_link_code: str | None = None
     tracked_url: str | None = Field(
         default=None, description="Short tracked link of this DM (F8). Each visit is counted as a click."
@@ -79,6 +83,10 @@ class DmAttemptRead(BaseModel):
 
 class ApproveRequest(BaseModel):
     text: str | None = Field(default=None, max_length=1000, description="Optional edited text of the DM.")
+    product_id: int | None = Field(
+        default=None,
+        description="Optional product of the catalog. Without `text`, the DM is written again for this product.",
+    )
 
 
 class AutoDmRunResult(BaseModel):

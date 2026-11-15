@@ -21,6 +21,8 @@ from app.domains.classification.schemas import (
 from app.domains.classification.taxonomy import Intent
 from app.domains.content.models import Message, MessageDirection, Post
 
+from app.domains.products.matching import ProductMatcher, match_messages  # noqa: E402
+
 logger = logging.getLogger(__name__)
 
 
@@ -113,13 +115,24 @@ async def classify_messages(
 
 
 async def run_classification(
-    session: Session, classifier: Classifier, request: ClassificationRunRequest
+    session: Session,
+    classifier: Classifier,
+    request: ClassificationRunRequest,
+    matcher: ProductMatcher | None = None,
 ) -> ClassificationRunResult:
-    return await classify_messages(session, classifier, select_messages(session, request))
+    messages = select_messages(session, request)
+    result = await classify_messages(session, classifier, messages)
+    if matcher is not None:
+        result.with_product = await match_messages(session, matcher, messages)
+    return result
 
 
 async def classify_in_background(
-    engine: Engine, classifier: Classifier, message_ids: Sequence[int] | None = None, account_id: str | None = None
+    engine: Engine,
+    classifier: Classifier,
+    message_ids: Sequence[int] | None = None,
+    account_id: str | None = None,
+    matcher: ProductMatcher | None = None,
 ) -> None:
     """Background task: it opens its own session, because the request session is closed."""
     with Session(engine) as session:
@@ -136,6 +149,9 @@ async def classify_in_background(
         else:
             messages = select_messages(session, ClassificationRunRequest(account_id=account_id, limit=2000))
         result = await classify_messages(session, classifier, messages)
+        if matcher is not None:
+            # F7 ter: the product of each message, before the auto-DM (next background task).
+            result.with_product = await match_messages(session, matcher, messages)
         logger.info("Background classification: %s", result.model_dump())
 
 
