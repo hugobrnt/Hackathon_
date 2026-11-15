@@ -22,7 +22,7 @@ from app.domains.classification.taxonomy import Intent, Sentiment
 from app.domains.content import repository
 from app.domains.content.models import Message, MessageDirection, MessageKind, Post
 from app.domains.conversations.agent import AgentInput, AgentProduct, AgentTurn, ConversationAgent
-from app.domains.conversations.models import AGENT_STATUSES, AgentConversation, ConversationStatus
+from app.domains.conversations.models import AGENT_STATUSES, AgentConversation, ConversationSource, ConversationStatus
 from app.domains.conversations.schemas import ConversationDetail, ConversationSummary, SentBy, ThreadMessage
 from app.domains.outreach.models import DmAttempt
 from app.domains.products.models import Product
@@ -101,22 +101,24 @@ def link_incoming(session: Session, message: Message) -> AgentConversation | Non
         ).first()
         if found is not None:
             return found
+    # Zernio can give 2 ids for the same thread (its own id in `message.sent`, the platform participant id in
+    # the inbox): the sender id (Instagram-scoped user id, the same as the comment author) is the stable key.
     since = utc_now() - LINK_WINDOW
     candidates = session.exec(
         select(AgentConversation)
         .where(
             AgentConversation.account_id == message.account_id,
-            col(AgentConversation.conversation_id).is_(None),
             col(AgentConversation.created_at) >= since,
         )
         .order_by(col(AgentConversation.created_at).desc())
     )
     for conversation in candidates:
-        same_id = message.author_id and conversation.recipient_id == message.author_id
-        same_name = message.author_name and conversation.recipient_name == message.author_name
-        if same_id or same_name:
-            conversation.conversation_id = message.conversation_id
-            session.add(conversation)
+        same_id = bool(message.author_id) and conversation.recipient_id == message.author_id
+        same_name = bool(message.author_name) and conversation.recipient_name == message.author_name
+        if same_id or (same_name and conversation.conversation_id is None):
+            if conversation.conversation_id is None:
+                conversation.conversation_id = message.conversation_id
+                session.add(conversation)
             return conversation
     return None
 
@@ -131,21 +133,38 @@ def _set_status(conversation: AgentConversation, status: ConversationStatus, rea
 
 
 def _thread(session: Session, conversation: AgentConversation) -> list[Message]:
+    """The DMs of the conversation: same conversation id, or the same thread under its other id."""
     if not conversation.conversation_id:
         return []
+    ids = {conversation.conversation_id}
+    if conversation.recipient_id:
+        # The thread id of the prospect's own messages (the other id format of the same thread).
+        ids.update(
+            cid
+            for cid in session.exec(
+                select(Message.conversation_id).where(
+                    Message.account_id == conversation.account_id,
+                    Message.kind == MessageKind.dm,
+                    Message.author_id == conversation.recipient_id,
+                )
+            )
+            if cid
+        )
     query = (
         select(Message)
         .where(
             Message.account_id == conversation.account_id,
             Message.kind == MessageKind.dm,
-            Message.conversation_id == conversation.conversation_id,
+            col(Message.conversation_id).in_(ids),
         )
         .order_by(col(Message.created_time), col(Message.id))
     )
     return list(session.exec(query))
 
 
-def _agent_product(session: Session, product: Product, message: Message | None, post: Post) -> AgentProduct:
+def _agent_product(
+    session: Session, product: Product, message: Message | None, post: Post | None
+) -> AgentProduct:
     """The link: the tracked link of the auto-DM for its product, else the product page with UTM."""
     attempt_link = None
     if message is not None:
@@ -155,17 +174,26 @@ def _agent_product(session: Session, product: Product, message: Message | None, 
     if attempt_link is not None and attempt_link.product_id == product.id:
         link = tracking.dm_url(attempt_link)
     else:
-        link = tracking.with_utm(product.landing_url, source=post.platform, content=f"post_{post.external_id}", term="dm")
+        source = post.platform if post else "instagram"
+        content = f"post_{post.external_id}" if post else "inbound_dm"
+        link = tracking.with_utm(product.landing_url, source=source, content=content, term="dm")
     return AgentProduct(
         title=product.title, description=product.description, link=link, business_type=product.business_type
     )
 
 
+def _origin(session: Session, conversation: AgentConversation) -> tuple[DmAttempt | None, Message | None]:
+    """The auto-DM and its comment, or no auto-DM and the first DM of the prospect."""
+    attempt = session.get(DmAttempt, conversation.dm_attempt_id) if conversation.dm_attempt_id else None
+    if attempt is not None:
+        return attempt, session.get(Message, attempt.message_id)
+    origin = session.get(Message, conversation.origin_message_id) if conversation.origin_message_id else None
+    return None, origin
+
+
 def _build_input(session: Session, conversation: AgentConversation) -> AgentInput:
-    attempt = session.get(DmAttempt, conversation.dm_attempt_id)
-    origin = session.get(Message, attempt.message_id) if attempt else None
-    post = session.get(Post, conversation.post_id)
-    assert post is not None
+    attempt, origin = _origin(session, conversation)
+    post = session.get(Post, conversation.post_id) if conversation.post_id is not None else None
     catalog = active_catalog(session, conversation.account_id)
     main = next((p for p in catalog if p.id == conversation.product_id), None)
     history = [
@@ -177,7 +205,7 @@ def _build_input(session: Session, conversation: AgentConversation) -> AgentInpu
         history.insert(0, AgentTurn(role="brand", text=attempt.text))  # The auto-DM is not received back yet.
     return AgentInput(
         origin_comment=origin.text if origin else "",
-        post_caption=post.caption,
+        post_caption=post.caption if post else "",
         product=_agent_product(session, main, origin, post) if main else None,
         other_products=[_agent_product(session, p, None, post) for p in catalog if p.id != conversation.product_id],
         history=history,
@@ -273,9 +301,46 @@ async def reply_in_background(
             return
         async with zernio_factory() as zernio:
             for message in messages:
-                conversation = link_incoming(session, message)
+                conversation = link_incoming(session, message) or start_for_inbound_dm(session, message)
                 if conversation is not None:
                     await answer(session, conversation, message, agent, zernio)
+
+
+INBOUND_INTENTS = frozenset({Intent.purchase_intent, Intent.pre_purchase_question, Intent.objection})
+
+
+def start_for_inbound_dm(session: Session, message: Message) -> AgentConversation | None:
+    """A prospect writes a DM first: start a conversation if the DM shows a buying signal.
+
+    Conditions: the setting is on, the DM has a Zernio conversation id, the classification is a purchase,
+    a question or an objection, and the account has at least one active product.
+    """
+    if not get_settings().agent_reply_inbound_dms or not message.conversation_id or message.author_is_owner:
+        return None
+    classification = session.get(MessageClassification, message.id)
+    if classification is None or classification.intent not in INBOUND_INTENTS:
+        return None
+    catalog = active_catalog(session, message.account_id)
+    if not catalog:
+        return None
+    product_id = classification.product_id if any(p.id == classification.product_id for p in catalog) else None
+    if product_id is None and len(catalog) == 1:
+        product_id = catalog[0].id
+    conversation = AgentConversation(
+        account_id=message.account_id,
+        source=ConversationSource.inbound_dm,
+        origin_message_id=message.id,
+        product_id=product_id,
+        recipient_id=message.author_id,
+        recipient_name=message.author_name,
+        conversation_id=message.conversation_id,
+        status=ConversationStatus.active,
+        last_message_at=message.created_time,
+    )
+    session.add(conversation)
+    session.commit()
+    session.refresh(conversation)
+    return conversation
 
 
 # Views for the user
@@ -296,7 +361,7 @@ def to_summary(session: Session, conversation: AgentConversation) -> Conversatio
     if thread:
         item.last_message = thread[-1].text
     else:
-        attempt = session.get(DmAttempt, conversation.dm_attempt_id)
+        attempt, _ = _origin(session, conversation)
         item.last_message = attempt.text if attempt else None
     item.needs_attention = conversation.status == ConversationStatus.handed_off
     return item
@@ -317,8 +382,7 @@ def list_conversations(
 def detail(session: Session, conversation_id: int) -> ConversationDetail:
     conversation = _get(session, conversation_id)
     summary = to_summary(session, conversation)
-    attempt = session.get(DmAttempt, conversation.dm_attempt_id)
-    origin = session.get(Message, attempt.message_id) if attempt else None
+    attempt, origin = _origin(session, conversation)
     agent_ids = set(conversation.agent_message_ids)
     if attempt and attempt.zernio_message_id:
         agent_ids.add(attempt.zernio_message_id)

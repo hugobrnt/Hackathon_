@@ -125,3 +125,58 @@ def test_unknown_dm_is_ignored_and_404(client: TestClient, session: Session, zer
     send(client, dm_event("e1", "Hello", mid="mid.x", sender="someone"))
     assert client.get("/conversations").json() == []
     assert client.get("/conversations/999").status_code == 404
+
+
+def test_inbound_dm_with_buying_signal_gets_an_answer(
+    client: TestClient, session: Session, zernio_mock: respx.MockRouter
+) -> None:
+    agent = ScriptedAgent(AgentDecision(action="reply", message="Le t-shirt est ici : https://shop.test", reason="link"))
+    use_agent(client, agent)
+    setup_post(session)
+    from tests.test_outreach import add_product
+
+    add_product(client)
+    route = zernio_mock.post("/inbox/conversations/conv-in/messages").respond(json={"data": {"messageId": "mid.a1"}})
+    send(client, dm_event("e1", "Je prends ! Où je commande ?", mid="mid.in1", conv="conv-in", sender="lea"))
+    assert route.called
+    conversations = client.get("/conversations").json()
+    assert [(c["source"], c["status"], c["agent_replies"], c["post_id"]) for c in conversations] == [
+        ("inbound_dm", "active", 1, None)
+    ]
+    assert agent.inputs[0].product is not None and agent.inputs[0].product.title == "Hoodie bio"
+    assert "utm_content=inbound_dm" in agent.inputs[0].product.link
+    detail = client.get(f"/conversations/{conversations[0]['id']}").json()
+    assert detail["origin_comment"] == "Je prends ! Où je commande ?"
+    assert [m["sent_by"] for m in detail["messages"]] == ["prospect", "agent"]
+
+    send(client, dm_event("e2", "stop", mid="mid.in2", conv="conv-in", sender="lea"))
+    assert client.get("/conversations").json()[0]["status"] == "closed"
+    assert route.call_count == 1
+
+
+def test_inbound_dm_without_signal_or_catalog_is_ignored(
+    client: TestClient, session: Session, zernio_mock: respx.MockRouter
+) -> None:
+    use_agent(client, ScriptedAgent())
+    setup_post(session)
+    route = zernio_mock.post(url__regex=r".*/inbox/conversations/.*/messages").respond(json={"data": {}})
+    send(client, dm_event("e1", "Je prends ! Où je commande ?", mid="mid.a", conv="conv-a"))  # Empty catalog.
+    from tests.test_outreach import add_product
+
+    add_product(client)
+    send(client, dm_event("e2", "🔥🔥", mid="mid.b", conv="conv-b"))  # No buying signal.
+    assert client.get("/conversations").json() == [] and not route.called
+
+
+def test_link_when_zernio_gives_another_thread_id(
+    client: TestClient, session: Session, zernio_mock: respx.MockRouter
+) -> None:
+    use_agent(client, ScriptedAgent(AgentDecision(action="reply", message="Voici le lien !")))
+    conversation_id = start(client, session, zernio_mock)
+    route = zernio_mock.post("/inbox/conversations/conv-1/messages").respond(json={"data": {"messageId": "mid.2"}})
+    send(client, dm_event("e1", "Hello anis", sent=True, mid="mid.1", conv="conv-1"))  # Zernio id.
+    send(client, dm_event("e2", "Le lien stp ?", mid="mid.p1", conv="1008123922332735"))  # Participant id.
+    assert route.called  # The agent answers in the known thread.
+    detail = client.get(f"/conversations/{conversation_id}").json()
+    assert [m["sent_by"] for m in detail["messages"]] == ["agent", "prospect", "agent"]
+    assert len(client.get("/conversations").json()) == 1  # No second (inbound) conversation.

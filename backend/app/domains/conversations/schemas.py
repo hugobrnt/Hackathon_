@@ -3,7 +3,7 @@ from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.domains.conversations.models import ConversationStatus
+from app.domains.conversations.models import ConversationSource, ConversationStatus
 
 
 class SentBy(StrEnum):
@@ -17,7 +17,8 @@ class ConversationSummary(BaseModel):
 
     id: int
     account_id: str
-    post_id: int
+    source: ConversationSource = Field(description="`auto_dm` (after a comment) or `inbound_dm` (DM first).")
+    post_id: int | None
     product_id: int | None
     product_title: str | None = None
     recipient_id: str | None
@@ -40,7 +41,9 @@ class ThreadMessage(BaseModel):
 
 
 class ConversationDetail(ConversationSummary):
-    origin_comment: str | None = Field(description="The comment that started the conversation.")
+    origin_comment: str | None = Field(
+        description="The comment (auto_dm) or the first DM of the prospect (inbound_dm) that started it."
+    )
     messages: list[ThreadMessage] = Field(description="The DMs in time order: auto-DM, prospect, agent, human.")
 
 
