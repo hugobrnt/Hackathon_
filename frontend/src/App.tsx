@@ -669,10 +669,9 @@ export default function App() {
                 <h2>Live capabilities</h2>
                 <p>
                   Channel authorization, imports, classification, post ranking
-                  and comment evidence are connected to F1–F6. The merged F7–F8
-                  backend adds auto-DM and tracking; those controls are not
-                  wired into this interface yet. Paid promotion is not
-                  connected.
+                  and comment evidence use F1–F6. Conversations use F7–F8 for
+                  DMs and tracking. Product insights use F12 reports; Boost uses
+                  F9 ad accounts, campaign creation and status tracking.
                 </p>
                 <h2>Refresh</h2>
                 <p>

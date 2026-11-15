@@ -61,9 +61,9 @@ Purchase intent = purchase-intent comments / all imported incoming non-owner com
 
 DM CTR = successfully sent DMs with at least one human click / successfully sent DMs. Repeated clicks increase clicks, not clicked DMs. Preview-only links and bot hits do not inflate CTR. No purchase attribution is claimed.
 
-The Posts list focuses on purchase intent and actions. Platform metrics stay in detail; formula explanations live in tooltips/Data & definitions. Boost has no ad-buying integration and Similar ad is disabled.
+The Posts list focuses on purchase intent and actions. Platform metrics stay in detail; formula explanations live in tooltips/Data & definitions. Boost uses F9 campaign creation; Similar ad remains disabled.
 
-Incoming chat replies, user authentication, publication and paid promotion remain outside the connected API features. Brand-voice fields are local; product facts used for DMs are persisted server-side.
+Incoming chat replies, user authentication and publication remain outside the connected API features. Brand-voice fields are local; product facts used for DMs are persisted server-side.
 
 For large accounts, add backend pagination and aggregated cross-channel insight endpoints rather than fetching every post detail (currently bounded to four concurrent requests).
 
@@ -86,8 +86,18 @@ pnpm build:frontend
 
 Node 24+ is recommended. Tests cover metric denominators, weighted rates, UTC dates, demo isolation, DM lifecycle/idempotency, CTR, F7/F8 HTTP contracts, cross-channel evidence and partial product synchronization. External sends are mocked in tests.
 
-## Product insight list
+## F12 product insights
 
-Insights groups classified audience comments by intent and recognized product topics (e.g. pricing, platform availability, login and exports). These are deterministic topic groups, not generated AI summaries or recommendations. Unrecognized topics retain the original comment text as the heading. Neutral, unclassified and brand comments are excluded from this list; purchase-intent metric denominators stay unchanged.
+Connected mode reads `GET /insights?account_id=…&post_id=…&top=20` and generates reports only after an explicit click via `POST /insights/run`. A 404 means no saved report for this exact scope; other errors are shown. Global view gathers the account reports without pretending to merge independently generated themes. Each row retains its channel, run date and grouping method (AI or heuristic).
 
-Each expandable insight contains the original comments, their authors, dates, review flags, channels and source posts. Counts refer to comments, not unique prospects. Channel and post filters narrow both metrics and evidence. Tests verify deduplication, attribution and preservation of distinct intents.
+The API supports objections, feature requests, needs and praise, covering classified incoming comments and DMs. It currently selects up to 150 messages per category/account and returns up to 20 themes. Counts are messages, not people or purchases. GET totals are calculated by the backend from current classifications, whereas themes belong to the saved run. Refresh to regenerate them together. Empty runs have no persisted theme rows in the current backend, so an empty report may require regeneration after reloading.
+
+Rows show backend titles, summaries and quotes. Source comments are resolved lazily through F6 using the report’s message/post IDs, with account validation and four concurrent reads maximum. DM sources absent from post detail are not invented. Missing reports and partial channel failures are explicit. Demo uses the same report shape with isolated local grouping and storage; live never falls back to local themes.
+
+## F9 Boost
+
+The Boost dialog loads `GET /ads/accounts?account_id=…` and `GET /posts/{id}/boosts`, then collects an ad account, goal, budget type/amount and duration. A separate review step shows the total and delivery choice before `POST /posts/{id}/boost` with `confirm: true`. Creation defaults to paused. Active creation requires a known ad-account currency. The backend enforces its configured budget cap and platform constraints; errors such as missing linked Facebook Page are displayed.
+
+Created/pending-review campaigns count as successful creations, not active delivery. History shows request, delivery and review statuses. `POST /ads/boosts/{id}/refresh` updates an existing campaign’s status. No create request is automatically retried; after an error the user must inspect/reload history before submitting again. The server generates a fresh idempotency key for each new create request, so the UI locks concurrent submissions and offers a distinct “Create another boost” action after success.
+
+Demo campaigns never contact the backend or Zernio. They persist locally, use EUR and a simulated 50 EUR cap, and can move from pending review to approved using “Simulate review”. These local values do not override live server configuration. Validation uses mocked campaign requests and offline simulation; no real campaign is created by automated tests.
