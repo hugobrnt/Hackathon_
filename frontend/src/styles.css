@@ -1612,8 +1612,17 @@ tbody td small {
   color: #777;
   font-size: 11px;
 }
-.platform-strip .icon {
-  margin-right: -9px;
+.platform-strip .platform-badge {
+  gap: 8px;
+  color: inherit;
+  font-size: inherit;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.platform-strip .platform-badge img {
+  width: 24px;
+  height: 24px;
+  filter: grayscale(1) brightness(0);
 }
 .landing-preview {
   margin: 0 6%;

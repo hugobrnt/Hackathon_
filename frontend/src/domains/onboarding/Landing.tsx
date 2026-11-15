@@ -1,3 +1,4 @@
+import { PlatformBadge } from "../../shared/PlatformBadge";
 import { Button, Icon } from "../../shared/ui";
 export function Landing({
   onDemo,
@@ -46,13 +47,9 @@ export function Landing({
           </div>
           <small>No account or API key needed for the demo.</small>
           <div className="platform-strip">
-            <Icon name="instagram" />
-            <span>Instagram</span>
-            <Icon name="linkedin" />
-            <span>LinkedIn</span>
-            <span>TikTok</span>
-            <span>Facebook</span>
-            <span>X</span>
+            {["instagram", "linkedin", "tiktok", "facebook", "twitter"].map(
+              (platform) => <PlatformBadge key={platform} platform={platform} label />,
+            )}
           </div>
         </section>
         <section id="product" className="landing-preview">
