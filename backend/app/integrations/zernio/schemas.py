@@ -201,3 +201,9 @@ class PostAnalyticsResponse(ZernioModel):
             if item.platform_post_id == platform_post_id and item.account_id in (None, account_id):
                 return item.analytics
         return self.analytics
+
+
+class PrivateReplyResult(ZernioModel):
+    status: str | None = None
+    message_id: str | None = Field(default=None, validation_alias=AliasChoices("messageId", "message_id"))
+    comment_id: str | None = Field(default=None, validation_alias=AliasChoices("commentId", "comment_id"))

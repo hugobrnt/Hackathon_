@@ -22,6 +22,9 @@ def init_db(engine: Engine | None = None) -> None:
     from app.domains.content import models as _content  # noqa: F401
     from app.domains.webhooks import models as _webhooks  # noqa: F401
     from app.domains.classification import models as _classification  # noqa: F401
+    from app.domains.outreach import models as _outreach  # noqa: F401
+    from app.domains.products import models as _products  # noqa: F401
+    from app.domains.tracking import models as _tracking  # noqa: F401
 
     engine = engine or get_engine()
     SQLModel.metadata.create_all(engine)
@@ -29,7 +32,7 @@ def init_db(engine: Engine | None = None) -> None:
 
 
 def add_missing_columns(engine: Engine) -> None:
-    """Minimal migration: add the new nullable columns to the existing tables.
+    """Minimal migration: add the new columns (nullable, or NOT NULL with a server default).
 
     `create_all` creates the missing tables but does not change an existing table.
     """
@@ -42,10 +45,14 @@ def add_missing_columns(engine: Engine) -> None:
             for column in table.columns:
                 if column.name in existing:
                     continue
-                if not column.nullable:
-                    raise RuntimeError(f"Cannot add the NOT NULL column {table.name}.{column.name}.")
                 column_type = column.type.compile(dialect=engine.dialect)
-                connection.execute(text(f'ALTER TABLE "{table.name}" ADD COLUMN "{column.name}" {column_type}'))
+                ddl = f'ALTER TABLE "{table.name}" ADD COLUMN "{column.name}" {column_type}'
+                default = column.server_default
+                if not column.nullable:
+                    if default is None or not hasattr(default, "arg"):
+                        raise RuntimeError(f"Cannot add the NOT NULL column {table.name}.{column.name}.")
+                    ddl += f" NOT NULL DEFAULT '{default.arg}'"
+                connection.execute(text(ddl))
 
 
 def get_session() -> Iterator[Session]:

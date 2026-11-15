@@ -4,6 +4,12 @@
     "platform": "instagram",
     "username": "maison.karim"
   },
+  "product": {
+    "business_type": "ecommerce",
+    "name": "Hoodie Maison Karim",
+    "landing_url": "https://example.com/hoodie",
+    "description": "Hoodie en coton bio fabriqué dans notre atelier à Roubaix. 59 €. Coloris noir, gris et vert sauge (précommande, expédition sous 3 semaines). Tailles XS à XXL. Livraison offerte en France dès 50 €, Belgique et Suisse 6,90 €. Retours gratuits sous 30 jours. Paiement en 3 fois sans frais dès 50 €."
+  },
   "posts": [
     {
       "id": "demo-post-1",

@@ -1,6 +1,6 @@
 """Async HTTP client for the Zernio API (https://docs.zernio.com)."""
 
-from collections.abc import AsyncIterator, Mapping
+from collections.abc import AsyncIterator, Callable, Mapping
 from types import TracebackType
 from typing import Self
 
@@ -20,6 +20,7 @@ from app.integrations.zernio.schemas import (
     PlatformPost,
     PostAnalyticsResponse,
     PostMetrics,
+    PrivateReplyResult,
     PostCommentsResponse,
     Profile,
     ProfilesResponse,
@@ -39,11 +40,14 @@ MAX_PAGES = 20
 class ZernioError(Exception):
     """An error response from Zernio, or a network failure."""
 
-    def __init__(self, status_code: int, message: str, code: str | None = None) -> None:
+    def __init__(
+        self, status_code: int, message: str, code: str | None = None, details: dict[str, object] | None = None
+    ) -> None:
         super().__init__(message)
         self.status_code = status_code
         self.message = message
         self.code = code
+        self.details = details or {}
 
 
 class ZernioClient:
@@ -85,16 +89,24 @@ class ZernioClient:
         if response.is_error:
             message = response.text
             code: str | None = None
+            details: dict[str, object] = {}
             try:
                 body = response.json()
                 if isinstance(body, dict):
                     message = str(body.get("error") or body.get("message") or message)
                     code = str(body["code"]) if body.get("code") is not None else None
+                    details = self._error_details(body)
             except ValueError:
                 pass
-            raise ZernioError(response.status_code, message, code)
+            raise ZernioError(response.status_code, message, code, details)
         result: object = response.json()
         return result
+
+    @staticmethod
+    def _error_details(body: object) -> dict[str, object]:
+        if isinstance(body, dict) and isinstance(body.get("details"), dict):
+            return dict(body["details"])
+        return {}
 
     async def _get(self, path: str, params: Mapping[str, str | int | bool | None] | None = None) -> object:
         return await self._request("GET", path, params=params)
@@ -126,6 +138,17 @@ class ZernioClient:
     async def list_account_posts(self, account_id: str) -> list[PlatformPost]:
         data = await self._get(f"/accounts/{account_id}/posts")
         return AccountPostsResponse.model_validate(data).posts
+
+    async def send_private_reply(
+        self, platform_post_id: str, comment_id: str, account_id: str, message: str
+    ) -> PrivateReplyResult:
+        """Send a DM to the author of a comment (Instagram/Facebook). One per comment, within 7 days."""
+        data = await self._request(
+            "POST",
+            f"/inbox/comments/{platform_post_id}/{comment_id}/private-reply",
+            json={"accountId": account_id, "message": message},
+        )
+        return PrivateReplyResult.model_validate(data)
 
     async def sync_external_posts(self, account_id: str) -> None:
         """Ask Zernio to read the recent posts and their metrics from the platform now."""
@@ -222,6 +245,14 @@ class ZernioClient:
 
     async def send_test_webhook(self, webhook_id: str) -> None:
         await self._request("POST", "/webhooks/test", json={"webhookId": webhook_id})
+
+
+ZernioClientFactory = Callable[[], ZernioClient]
+
+
+def get_zernio_client_factory() -> ZernioClientFactory:
+    """FastAPI dependency for background tasks: they need their own client, opened after the response."""
+    return lambda: ZernioClient(get_settings())
 
 
 async def get_zernio_client() -> AsyncIterator[ZernioClient]:
