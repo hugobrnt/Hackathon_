@@ -1,5 +1,9 @@
 import { api } from "./client.ts";
-import { demoAccount, demoDetails } from "../domains/demo/data.ts";
+import {
+  demoAccounts,
+  demoPosts,
+  demoPost,
+} from "../domains/demo/workspace.ts";
 import { sortPosts } from "../domains/analytics/model.ts";
 import type { PostDetail, PostIntentStats, SocialAccount } from "./types";
 export type DataMode = "demo" | "live";
@@ -9,16 +13,9 @@ export interface DataSource {
   detail: (id: number, signal?: AbortSignal) => Promise<PostDetail>;
 }
 const offline: DataSource = {
-  accounts: async () => [structuredClone(demoAccount)],
-  posts: async (id) =>
-    id === demoAccount.id
-      ? structuredClone(sortPosts(demoDetails, "intent_score"))
-      : [],
-  detail: async (id) => {
-    const p = demoDetails.find((p) => p.post.id === id);
-    if (!p) throw new Error("Demo post not found.");
-    return structuredClone(p);
-  },
+  accounts: async () => demoAccounts(),
+  posts: async (id) => sortPosts(demoPosts(id), "intent_score"),
+  detail: async (id) => demoPost(id),
 };
 const live: DataSource = {
   accounts: async (signal) =>
@@ -43,8 +40,16 @@ export async function loadEvidence(
     const batch = await Promise.all(
       posts.slice(i, i + 4).map((p) => source.detail(p.post.id, signal)),
     );
-    if (batch.some((p) => p.post.account_id !== posts[0]?.post.account_id))
-      throw new Error("The API returned a post from a different account.");
+    if (
+      batch.some(
+        (p, index) =>
+          p.post.account_id !== posts[i + index]?.post.account_id ||
+          p.post.id !== posts[i + index]?.post.id,
+      )
+    )
+      throw new Error(
+        "The API returned a post from a different account or post.",
+      );
     results.push(...batch);
   }
   return results;

@@ -103,10 +103,7 @@ export function PostsView({
           onOpen={onOpen}
         />
       )}
-      <Heading
-        title="Posts"
-        subtitle="Find the content that creates interest. Understand the numbers behind it."
-      >
+      <Heading title="Posts">
         <Button onClick={exportCsv} disabled={!filtered.length}>
           Export CSV ↗
         </Button>
@@ -288,15 +285,6 @@ export function PostsView({
           ))}
         </div>
       )}
-      <p className="footnote">{PIR_DEFINITION}</p>
-      <div className="panel subtle">
-        <h3>Volume matters as much as the rate.</h3>
-        <p className="muted">
-          Use a minimum comment count before comparing posts. A 50% rate from
-          two comments is not stronger evidence than sustained interest across
-          many comments.
-        </p>
-      </div>
     </>
   );
 }

@@ -133,8 +133,8 @@ export function Profile({
           />
         </label>
         <p className="footnote">
-          Saved in this browser only. Brand-profile persistence is not yet
-          exposed by the backend.
+          Brand voice stays in this browser. Configure the product used by DMs
+          in Conversations → Automation.
         </p>
         {error && (
           <p role="alert" className="error-text">

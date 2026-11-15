@@ -14,7 +14,10 @@ export class ApiError extends Error {
     this.status = status;
   }
 }
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+export async function request<T>(
+  path: string,
+  init: RequestInit = {},
+): Promise<T> {
   let response: Response;
   try {
     response = await fetch(BASE + path, {

@@ -11,11 +11,16 @@ import {
   lingoProfile,
   type BrandProfile,
 } from "./domains/accounts/Profile";
+import {
+  DemoOnboarding,
+  restartDemoOnboarding,
+} from "./domains/onboarding/DemoOnboarding";
+import { WorkspaceTour, tourSteps } from "./domains/onboarding/WorkspaceTour";
 import { Landing } from "./domains/onboarding/Landing";
 import { Dashboard } from "./domains/dashboard/Dashboard";
 import { PostsView } from "./domains/posts/PostsView";
 import { DetailDialog } from "./domains/posts/DetailDialog";
-import { Insights } from "./domains/insights/Insights";
+import { BrandInsights } from "./domains/insights/BrandInsights";
 import { Analytics } from "./domains/analytics/Analytics";
 import { Conversations } from "./domains/community/Conversations";
 import { aggregate, INTENTS, PIR_DEFINITION } from "./domains/analytics/model";
@@ -36,6 +41,7 @@ const nav = [
 const routes = new Set([
   ...nav.map(([id]) => id),
   "landing",
+  "demo",
   "brand",
   "connections",
   "profile",
@@ -76,18 +82,21 @@ export default function App() {
     [notice, setNotice] = useState<{ text: string; error?: boolean } | null>(
       null,
     ),
-    [profileRevision, setProfileRevision] = useState(0);
-  const workspaceEnabled = !["landing", "brand"].includes(route.view);
+    [profileRevision, setProfileRevision] = useState(0),
+    [tourStep, setTourStep] = useState<number>(() => {
+      const n = readStored<unknown>("signal:demo:tour", -1);
+      return typeof n === "number" && n >= 0 && n < 4 ? n : -1;
+    });
+  const workspaceEnabled = !["landing", "brand", "demo"].includes(route.view);
   const preferred = route.params.get("account") ?? "";
   const workspace = useWorkspace(mode, preferred, revision, workspaceEnabled);
   const account = workspace.account;
   const evidence = useEvidence(
     mode,
     workspace.posts,
-    route.view === "insights" || route.view === "analytics",
+    route.view === "analytics",
   );
-  const profileKey =
-    "signal:profile:" + mode + ":" + (account?.id ?? "workspace");
+  const profileKey = "signal:profile:" + mode + ":brand";
   const fallback =
     mode === "demo"
       ? lingoProfile
@@ -113,6 +122,33 @@ export default function App() {
     setPeriod("all");
     setNotice(null);
     navigate(destination, {}, false);
+  }
+  function beginDemo() {
+    restartDemoOnboarding();
+    setTourStep(-1);
+    saveStored("signal:demo:tour", -1);
+    changeMode("demo", "demo");
+  }
+  function finishDemo() {
+    setTourStep(0);
+    saveStored("signal:demo:tour", 0);
+    setProfileRevision((r) => r + 1);
+    setRevision((r) => r + 1);
+    navigate("dashboard", {}, false);
+  }
+  function dismissTour() {
+    setTourStep(-1);
+    saveStored("signal:demo:tour", -1);
+  }
+  function nextTour() {
+    if (tourStep >= tourSteps.length - 1) {
+      dismissTour();
+      return;
+    }
+    const next = tourStep + 1;
+    setTourStep(next);
+    saveStored("signal:demo:tour", next);
+    navigate(tourSteps[next].view);
   }
   useEffect(() => {
     const update = () => {
@@ -146,7 +182,10 @@ export default function App() {
     } else if (q.get("demo") === "1") {
       setMode("demo");
       saveStored("signal:mode", "demo");
-      location.hash = "/dashboard";
+      restartDemoOnboarding();
+      setTourStep(-1);
+      saveStored("signal:demo:tour", -1);
+      location.hash = "/demo";
       history.replaceState(null, "", location.pathname + location.hash);
     }
   }, []);
@@ -264,17 +303,28 @@ export default function App() {
   const total = aggregate(workspace.posts);
   const rawPost = route.params.get("post"),
     postId = rawPost && /^\d+$/.test(rawPost) ? Number(rawPost) : null;
-  const displayName = profile.name || account?.username || "Your brand";
+  const displayName = profile.name || "Your brand";
   function search(event: FormEvent) {
     event.preventDefault();
     if (!["posts", "insights"].includes(route.view)) navigate("posts");
   }
+  if (route.view === "demo")
+    return (
+      <DemoOnboarding
+        onComplete={finishDemo}
+        onExit={() => navigate("landing", {}, false)}
+      />
+    );
   if (route.view === "landing")
     return (
       <Landing
-        onDemo={() => changeMode("demo")}
+        onDemo={beginDemo}
         onStart={() => changeMode("live", "brand")}
-        onResume={() => navigate("dashboard", {}, false)}
+        onResume={() =>
+          mode === "demo" && !readStored("signal:demo:ready", false)
+            ? beginDemo()
+            : navigate("dashboard", {}, false)
+        }
       />
     );
   if (route.view === "brand")
@@ -287,7 +337,7 @@ export default function App() {
           <span className="muted small">
             01 Brand · 02 Channels · 03 Import
           </span>
-          <Button onClick={() => changeMode("demo")}>Try demo</Button>
+          <Button onClick={beginDemo}>Try demo</Button>
         </header>
         <main>
           <Profile
@@ -378,13 +428,24 @@ export default function App() {
             <Icon name="help" />
             Data & definitions
           </button>
+          {mode === "demo" && (
+            <button onClick={beginDemo}>
+              <Icon name="plus" />
+              Restart guided demo
+            </button>
+          )}
           <label className="mode-select">
             <span>Workspace</span>
             <select
               aria-label="Data mode"
               disabled={!!busy}
               value={mode}
-              onChange={(e) => changeMode(e.target.value as DataMode)}
+              onChange={(e) =>
+                e.target.value === "demo" &&
+                !readStored("signal:demo:ready", false)
+                  ? beginDemo()
+                  : changeMode(e.target.value as DataMode)
+              }
             >
               <option value="demo">Offline demo</option>
               <option value="live">Connected accounts</option>
@@ -440,6 +501,15 @@ export default function App() {
           </Button>
         </header>
         <main className="main">
+          {mode === "demo" && tourStep >= 0 && (
+            <WorkspaceTour
+              step={tourStep}
+              view={route.view}
+              onNext={nextTour}
+              onDismiss={dismissTour}
+              onResume={() => navigate(tourSteps[tourStep].view)}
+            />
+          )}
           <div className="brand-bar">
             <div className="brand-identity">
               <span className="avatar avatar--large">
@@ -448,13 +518,19 @@ export default function App() {
               <div>
                 <div className="brand-title">
                   <h2>{displayName}</h2>
-                  {account && (
+                  {route.view === "insights" ? (
                     <span className="pill">
-                      {account.platform === "instagram" && (
-                        <Icon name="instagram" />
-                      )}
-                      {account.platform}
+                      All channels · {workspace.accounts.length}
                     </span>
+                  ) : (
+                    account && (
+                      <span className="pill">
+                        {account.platform === "instagram" && (
+                          <Icon name="instagram" />
+                        )}
+                        {account.platform}
+                      </span>
+                    )
                   )}
                 </div>
                 <p>
@@ -516,9 +592,7 @@ export default function App() {
             <div className="notice notice--error" role="alert">
               <span>{workspace.error}</span>
               <Button onClick={() => setRevision((r) => r + 1)}>Retry</Button>
-              <Button onClick={() => changeMode("demo")}>
-                Try offline demo
-              </Button>
+              <Button onClick={beginDemo}>Try offline demo</Button>
             </div>
           )}
           {route.view === "connections" ? (
@@ -530,7 +604,7 @@ export default function App() {
               onSync={syncAccounts}
               onLive={() => changeMode("live", "connections")}
               onImport={importAccount}
-              onDemo={() => changeMode("demo")}
+              onDemo={beginDemo}
               onHome={() => navigate("dashboard")}
             />
           ) : route.view === "profile" ? (
@@ -612,15 +686,14 @@ export default function App() {
                   <Button primary onClick={() => navigate("connections")}>
                     Connect a channel
                   </Button>
-                  <Button onClick={() => changeMode("demo")}>
-                    Explore demo
-                  </Button>
+                  <Button onClick={beginDemo}>Explore demo</Button>
                 </div>
               }
             >
               Import an account’s posts and comments to unlock your dashboard.
             </Empty>
-          ) : !workspace.posts.length && route.view !== "conversations" ? (
+          ) : !workspace.posts.length &&
+            !["conversations", "insights"].includes(route.view) ? (
             <Empty
               title="No posts imported yet"
               action={
@@ -645,15 +718,20 @@ export default function App() {
           ) : route.view === "posts" ? (
             <PostsView posts={filteredPosts} query={query} onOpen={openPost} />
           ) : route.view === "insights" ? (
-            <Insights
+            <BrandInsights
               key={intent}
-              posts={workspace.posts}
-              details={evidence.items}
-              loading={evidence.loading}
-              error={evidence.error}
+              mode={mode}
+              accounts={workspace.accounts}
+              revision={revision}
               initial={intent}
               query={query}
-              onOpen={openPost}
+              onOpen={(id, accountId) =>
+                navigate(
+                  "insights",
+                  { post: String(id), account: accountId },
+                  false,
+                )
+              }
             />
           ) : route.view === "analytics" ? (
             <Analytics
@@ -663,18 +741,17 @@ export default function App() {
               error={evidence.error}
             />
           ) : (
-            <Conversations mode={mode} onPosts={() => navigate("posts")} />
+            <Conversations
+              key={mode + ":" + account.id}
+              mode={mode}
+              accountId={account.id}
+              accounts={workspace.accounts}
+              posts={workspace.posts}
+              onPosts={() => navigate("posts")}
+              onOpen={openPost}
+              initialTab={route.params.get("tab") ?? "inbox"}
+            />
           )}
-          <footer className="workspace-footer">
-            <span>
-              {mode === "demo"
-                ? "Sample data · Nothing is sent to a social platform"
-                : "Imported account data · Intent does not equal a purchase"}
-            </span>
-            <button className="text-link" onClick={() => navigate("data")}>
-              How we calculate signals ↗
-            </button>
-          </footer>
         </main>
       </div>
       {postId !== null && account && (

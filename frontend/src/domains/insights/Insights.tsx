@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import type { Intent, PostDetail, PostIntentStats } from "../../api/types";
 import {
   aggregate,
@@ -17,7 +17,9 @@ export function Insights({
   initial,
   query,
   onOpen,
+  scope,
 }: {
+  scope?: ReactNode;
   posts: PostIntentStats[];
   details: PostDetail[];
   loading: boolean;
@@ -42,10 +44,8 @@ export function Insights({
   const [limit, setLimit] = useState(30);
   return (
     <>
-      <Heading
-        title="Insights"
-        subtitle="Praise, objections, product requests and problems — with the comments behind them."
-      />
+      <Heading title="Insights" />
+      {scope}
       <div className="metrics-grid">
         <Metric
           label="Purchase intent"
@@ -125,11 +125,6 @@ export function Insights({
               ))}
             </tbody>
           </table>
-          <p className="footnote">
-            These are classified categories, not automatically clustered themes.
-            Feature demand is evidence to investigate, not a commitment to
-            build.
-          </p>
         </section>
         <section className="panel evidence-panel">
           <div className="section-heading">
@@ -159,7 +154,7 @@ export function Insights({
                     className="text-link small"
                     onClick={() => onOpen(post.id)}
                   >
-                    From: {post.caption.slice(0, 65)} ↗
+                    {post.platform} · {post.caption.slice(0, 65)} ↗
                   </button>
                 </div>
               ))}

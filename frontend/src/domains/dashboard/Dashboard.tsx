@@ -107,7 +107,7 @@ export function Dashboard({
             <Metric
               label="Needs review"
               value={data.review}
-              hint="Classifications flagged by the backend"
+              hint="Uncertain classifications"
             />
           </div>
           <div className="section-heading">
@@ -153,17 +153,11 @@ export function Dashboard({
               </p>
             )}
           </div>
-          <p className="footnote">
-            Same account · Lifetime imported comments · Not a measure of sales
-          </p>
         </div>
         <div className="panel signal-panel">
           <span className="eyebrow">QUALITATIVE SIGNALS</span>
           <h3>What your audience is telling you</h3>
-          <p className="muted small">
-            {data.classified} classified comments · Categories from the backend,
-            not inferred topic clusters
-          </p>
+          <p className="muted small">{data.classified} classified comments</p>
           <div className="table-scroll">
             <table className="insight-table">
               <thead>

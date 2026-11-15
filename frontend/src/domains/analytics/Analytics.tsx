@@ -31,10 +31,7 @@ export function Analytics({
   const max = Math.max(0.1, ...timeline.map((b) => b.rate ?? 0));
   return (
     <>
-      <Heading
-        title="Analytics"
-        subtitle="Measure expressed intent over time. Keep attention, intent and conversions separate."
-      />
+      <Heading title="Analytics" />
       <div className="metrics-grid">
         <Metric
           label="Purchase intent · last 28 days"
@@ -125,22 +122,6 @@ export function Analytics({
             historical view.
           </p>
         </section>
-        <aside className="panel subtle">
-          <h2>
-            A signal of interest.
-            <br />
-            Not proof of more sales.
-          </h2>
-          <p>
-            Use the trend to ask better questions: did a new format attract
-            product questions? Did the audience or comment volume change?
-          </p>
-          <h4>Compare like with like</h4>
-          <p className="muted">
-            Stay within the same account, inspect the underlying posts and read
-            the source comments before drawing a conclusion.
-          </p>
-        </aside>
       </div>
       <div className="metrics-grid">
         <Metric

@@ -1,6 +1,6 @@
 # Signal frontend
 
-English interface connected to F1–F6, with the F7–F8 backend merged, using React, TypeScript and Vite. No additional runtime dependencies.
+React + TypeScript + Vite, with Motion for React. The UI is in English.
 
 ## Run
 
@@ -11,58 +11,72 @@ pnpm install --frozen-lockfile
 pnpm dev:frontend
 ```
 
-Open http://localhost:5173 and choose **Explore the demo**, or open http://localhost:5173/?demo=1 directly.
+Open http://localhost:5173 and choose **Start the guided demo**, or use http://localhost:5173/?demo=1.
 
-**The offline demo needs no backend, Zernio credentials, Instagram account or external asset request.** Its 8 posts and source comments use the API's shapes and score formulas. Demo replies and brand context stay in browser local storage. The mode selector switches explicitly between demo and connected accounts; API failures never silently display fake data.
+## Offline demo
 
-## Connected accounts
+The six-step onboarding includes simulated sign-in, optional brand context, simulated channel authorizations, sample import/classification, product configuration and a guided workspace tour. It never contacts Google, a social network, Zernio or the backend.
 
-Start the existing backend on port 8000 (see root README). Use **Connect my channels → optional brand context → channel authorization → import**. Refresh accounts also discovers channels already authorized in Zernio.
+Connect one or several sample channels. Each channel has its own account, post and comment IDs. The workspace uses one brand and one product across them. Demo data and activity persist in browser storage; **Restart guided demo** replays onboarding. A new sample import resets the simulated outreach of the selected channels.
 
-The five available connection buttons reflect the backend's SupportedPlatform enum: Instagram, LinkedIn, Facebook, TikTok and X. OAuth redirects through the existing backend callback. API credentials are never requested or bundled by the frontend.
+In Conversations, review a pending draft, **Simulate send**, then **Simulate a click**. Tracking updates from those local events. Approval, rejection, retryable failures, per-post rules, preview generation and idempotent comment processing use a separate offline adapter. Only eligible intent categories generate drafts; old comments and duplicate contacts are skipped. No real visit or DM is created.
 
-| View           | Source and capabilities                                                                               |
-| -------------- | ----------------------------------------------------------------------------------------------------- |
-| Dashboard      | F4/F5 ranking data; weighted account indicators and category counts                                   |
-| Posts          | F5 response; local sort/filter, minimum sample size, table/leaderboard and CSV export                 |
-| Post detail    | F6; platform metrics, intent distribution, source comments and classification evidence                |
-| Insights       | F6 comments, loaded with at most 4 concurrent requests; category filtering, evidence links and search |
-| Analytics      | F6 comment timestamps; 8 weekly UTC buckets and weighted 28-day comparison                            |
-| Conversations  | Clearly marked local reply simulation in demo; unavailable state in connected mode                    |
-| Enrich profile | Optional browser-local form; not yet sent to the classifier                                           |
+Motion handles step transitions, progressive channel cards, import progress and the workspace guide. Reduced-motion preferences are respected. See [Motion installation](https://motion.dev/docs/react-installation) and [accessibility](https://motion.dev/docs/react-accessibility).
 
-Connected data refreshes from the local backend every 15 seconds while visible. **Sync content** starts an actual Zernio import. Classification may complete asynchronously. The Data & definitions screen provides manual pending classification and metric definitions.
+## Connected accounts and F7–F8
 
-F7–F8 auto-DM, product context and tracking endpoints are now present in the backend, but this frontend does not yet wire them into its inbox/profile/analytics. User authentication, publication and paid promotion are not connected. Boost opens an availability dialog and never starts a campaign; Similar ad is disabled. This is a local hackathon workspace, not a multi-tenant authenticated deployment.
+Start the backend on port 8000. Connect/import accounts using the existing Zernio flow.
 
-## Posts list
+Conversations is an **outgoing DM activity view**, not a two-way chat inbox; the backend does not expose incoming replies as conversation threads.
 
-The list and leaderboard focus on purchase intent. Views, likes and shares stay in the post-detail view; the intent score and review column are removed from the list. Each post has Boost, a disabled Similar ad button, and an explicit Details ↗ action. The CSV follows the simplified list.
+| View/action                       | Backend                                      |
+| --------------------------------- | -------------------------------------------- |
+| DM history, status filters        | GET /auto-dm/attempts?account_id=…&limit=500 |
+| Product context                   | GET/PUT /accounts/{account_id}/product       |
+| Per-post automation               | GET/PUT /posts/{post_id}/auto-dm             |
+| DM preview                        | POST /messages/{message_id}/auto-dm/preview  |
+| Process eligible comments         | POST /posts/{post_id}/auto-dm/run            |
+| Approve/edit/send, retry          | POST /auto-dm/attempts/{id}/approve          |
+| Reject a pending message          | POST /auto-dm/attempts/{id}/reject           |
+| Human clicks / bot previews       | GET /tracking/links?account_id=…             |
+| CTR totals and per-post breakdown | GET /tracking/stats?account_id=…             |
 
-## Metric rules
+Real sends and enabling live rules have a review dialog. Runs use saved server settings, not unsaved form controls. Retry is offered only for retryable failures. Backend eligibility, deduplication, time windows and delivery decisions remain authoritative.
 
-- Purchase intent rate = purchase-intent comments / **all imported incoming non-owner comments**, including neutral/spam and unclassified comments. DMs and brand replies are excluded.
-- Account-level rate is a weighted ratio of counts, not an average of post percentages.
-- Intent score = (3 × purchase intent + 2 × pre-purchase questions + objections) / audience comments.
-- Null metrics appear as an em dash; totals label available coverage. Observed zero is not missing.
-- Timeline uses comment dates, not cumulative post metrics. Undated comments are excluded; later classification changes can revise past rates.
-- Comparison shows percentage-point change in expressed intent, not causal uplift or attributed sales.
-- Client sorting mirrors backend tie-breaks. A minimum comment threshold helps avoid rankings dominated by tiny samples.
-- Browser-local profile and simulated replies are stored separately from backend data.
+The UI polls visible DM activity every 15 seconds, pauses polling during mutations, and cancels stale reads. Errors do not fall back to demo data. Draft edits survive polling. The inbox is explicitly limited to the latest 500 attempts; tracking totals come from the full backend aggregation.
 
-For large accounts, replace the current bounded detail fetch with backend paginated/aggregated insights and timeline endpoints. This avoids refetching all comments while keeping metric definitions centralized.
+Tracking links are displayed/copied, never automatically opened or prefetched. Localhost tracking URLs are flagged: use a publicly reachable backend tracking base URL to count prospects' clicks. UTM destination fallbacks do not provide redirect counts to this API.
+
+## One brand, one product, multiple channels
+
+Brand context is shared locally instead of keyed per channel. Product configuration is edited once in Conversations → Automation and saved to every connected account, adapting to the backend's per-account product model. Partial failures are reported; conflicting/missing product copies are surfaced and can be reconciled by saving again. Newly connected channels are included on the next save.
+
+Insights defaults to all connected channels, with a per-channel filter and an expandable breakdown. Metrics aggregate comment counts, not average percentages. Failed channels are identified and excluded explicitly. Detail retrieval validates each requested account/post pair. Source comments display their channel.
+
+Other account-scoped views, including DM activity and tracking, use the account selected in the sidebar.
+
+## Metrics and limits
+
+Purchase intent = purchase-intent comments / all imported incoming non-owner comments, including neutral/spam and unclassified comments. DMs and brand replies are excluded.
+
+DM CTR = successfully sent DMs with at least one human click / successfully sent DMs. Repeated clicks increase clicks, not clicked DMs. Preview-only links and bot hits do not inflate CTR. No purchase attribution is claimed.
+
+The Posts list focuses on purchase intent and actions. Platform metrics stay in detail; formula explanations live in tooltips/Data & definitions. Boost has no ad-buying integration and Similar ad is disabled.
+
+Incoming chat replies, user authentication, publication and paid promotion remain outside the connected API features. Brand-voice fields are local; product facts used for DMs are persisted server-side.
+
+For large accounts, add backend pagination and aggregated cross-channel insight endpoints rather than fetching every post detail (currently bounded to four concurrent requests).
 
 ## Configuration
 
-Copy `.env.example` to `.env.local` if needed.
+Copy .env.example to .env.local if needed.
 
-- `VITE_API_TARGET`: development proxy destination (default http://localhost:8000).
-- `VITE_API_BASE`: browser-visible API base URL (default /api). A production reverse proxy must forward /api and strip the prefix; the Vite dev proxy does not exist in the production build.
-- Backend `FRONTEND_URL` must match the browser's origin for the OAuth callback.
+- VITE_API_TARGET: dev proxy destination (default http://localhost:8000).
+- VITE_API_BASE: browser-visible API base (default /api). Production needs a reverse proxy stripping /api, or a configured public API URL.
+- Backend FRONTEND_URL must match the browser origin for OAuth.
+- Keep backend API keys out of frontend environment variables.
 
-Hash routes work without server-side route rewriting. Post detail URLs carry account and post IDs. Mode and profile settings persist locally; do not put secrets in them.
-
-## Checks
+## Validation
 
 ```sh
 pnpm --filter frontend typecheck
@@ -70,6 +84,4 @@ pnpm --filter frontend test
 pnpm build:frontend
 ```
 
-Tests use Node's built-in TypeScript support (Node 24+ recommended). They cover denominator exclusions, weighted aggregation, missing metrics, ranking tie-breaks, UTC date boundaries and reconciliation of demo evidence with displayed rates.
-
-All visual assets and the Inter font are served from public/assets. The font license is included.
+Node 24+ is recommended. Tests cover metric denominators, weighted rates, UTC dates, demo isolation, DM lifecycle/idempotency, CTR, F7/F8 HTTP contracts, cross-channel evidence and partial product synchronization. External sends are mocked in tests.

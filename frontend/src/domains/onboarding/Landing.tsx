@@ -40,7 +40,7 @@ export function Landing({
           </p>
           <div className="actions">
             <Button primary onClick={onDemo}>
-              Explore the demo →
+              Start the guided demo →
             </Button>
             <Button onClick={onStart}>Connect my channels</Button>
           </div>
@@ -72,7 +72,7 @@ export function Landing({
                 trying your product.
               </p>
               <Button primary onClick={onDemo}>
-                Explore the dashboard ↗
+                Start the guided demo ↗
               </Button>
             </div>
             <div className="preview-metrics">
@@ -161,8 +161,8 @@ export function Landing({
               "Yes. The offline demo includes posts, source comments and classifications. It makes no API calls.",
             ],
             [
-              "Does this version send automatic DMs?",
-              "Not yet. The demo includes a clearly marked conversation simulation. Live DM controls still need to be connected to the backend. Paid promotion is not available yet.",
+              "Can I send real DMs?",
+              "Yes, from a connected account: save your product, configure Auto-DM on a post, then process or approve its messages. The offline demo simulates the same workflow without sending anything.",
             ],
           ].map(([q, a]) => (
             <details key={q}>
@@ -174,7 +174,7 @@ export function Landing({
         <section className="landing-cta">
           <h2>Your audience is already telling you something.</h2>
           <Button primary onClick={onDemo}>
-            See what the signals say →
+            Try the complete demo →
           </Button>
         </section>
       </main>
