@@ -1,19 +1,21 @@
 import { Button } from "../../shared/ui";
 export function ConnectionFallback({
+  expanded = false,
   busy,
   onInstagram,
   onRefresh,
 }: {
+  expanded?: boolean;
   busy: boolean;
   onInstagram: () => void;
   onRefresh: () => void;
 }) {
   return (
-    <details className="connection-help">
+    <details className="connection-help" open={expanded || undefined}>
       <summary>Connection didn’t finish?</summary>
       <p>
-        Instagram needs a professional account. After signing in, complete the
-        authorization before returning here.
+        Use an Instagram Business or Creator account. Sign in, accept the
+        permissions, then click Continue on Zernio to return to Signal.
       </p>
       <div className="actions">
         <Button disabled={busy} onClick={onInstagram}>

@@ -12,3 +12,6 @@ export const SOCIAL_PLATFORMS = [
   ["googlebusiness", "Google Business Profile"],
   ["snapchat", "Snapchat"],
 ] as const;
+
+/** Channels enabled in Signal; the Zernio catalog alone does not enable a channel. */
+export const canConnectPlatform = (platform: string): boolean => platform === "instagram";

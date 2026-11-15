@@ -199,3 +199,28 @@ def test_recovery_only_returns_current_profile_accounts(client: TestClient, zern
     result=client.post("/accounts/sync")
     assert result.status_code == 200
     assert [a["id"] for a in result.json()] == ["mine"]
+
+
+def test_callback_preserves_provider_failure_reference(
+    client: TestClient, zernio_mock: respx.MockRouter
+) -> None:
+    route = zernio_mock.get("/connect/instagram").respond(
+        json={"authUrl": "https://zernio.com/oauth"}
+    )
+    client.post("/accounts/connect/instagram")
+    state = parse_qs(
+        urlparse(route.calls.last.request.url.params["redirect_url"]).query
+    )["signal_state"][0]
+    response = client.get("/accounts/callback", params={
+        "signal_state": state,
+        "error": "oauth_denied",
+        "error_message": "Permission declined",
+        "platform": "instagram",
+        "request_id": "request-42",
+        "stage": "authorize",
+    })
+    query = parse_qs(urlparse(response.headers["location"]).query)
+    assert query["error_message"] == ["Permission declined"]
+    assert query["request_id"] == ["request-42"]
+    assert query["stage"] == ["authorize"]
+    assert client.get("/accounts", params={"sync": False}).json() == []

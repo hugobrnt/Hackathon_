@@ -2,10 +2,11 @@ import { ConnectionFallback } from "./ConnectionFallback";
 import type { SocialAccount } from "../../api/types";
 import type { DataMode } from "../../api/source";
 import { Button, Empty, Heading } from "../../shared/ui";
-import { SOCIAL_PLATFORMS } from "../../shared/platforms";
+import { SOCIAL_PLATFORMS, canConnectPlatform } from "../../shared/platforms";
 import { PlatformBadge } from "../../shared/PlatformBadge";
 export const PLATFORMS = SOCIAL_PLATFORMS;
 export function Connections({
+  error = "",
   mode,
   accounts,
   busy,
@@ -16,6 +17,7 @@ export function Connections({
   onLive,
   onHome,
 }: {
+  error?: string;
   mode: DataMode;
   accounts: SocialAccount[];
   busy: boolean;
@@ -36,6 +38,7 @@ export function Connections({
           Refresh accounts
         </Button>
       </Heading>
+      {error && <div className="notice notice--error" role="alert">{error}</div>}
       {mode === "demo" && (
         <div className="notice notice--demo">
           <strong>Offline demo</strong> One sample Instagram account is
@@ -45,31 +48,27 @@ export function Connections({
       )}
       <div className="networks-grid">
         {PLATFORMS.map(([key, name]) => {
+          const available = canConnectPlatform(key);
           return (
             <button
-              className="network-card"
+              className={"network-card" + (available ? "" : " unavailable")}
               key={key}
               onClick={() => onConnect(key)}
-              disabled={busy || mode === "demo" || key === "bluesky"}
-              title={
-                key === "bluesky"
-                  ? "Connect in Zernio, then refresh accounts"
-                  : key === "snapchat"
-                    ? "Closed-beta access required"
-                    : undefined
-              }
+              disabled={busy || mode === "demo" || !available}
+              title={!available ? "Not available yet" : undefined}
               aria-label={"Connect " + name}
             >
               <PlatformBadge platform={key} />
               <strong>{name}</strong>
-              <span className="network-plus">+</span>
-              <small>Connect account</small>
+              {available && <span className="network-plus">+</span>}
+              <small>{available ? "Connect account" : "Not available yet"}</small>
             </button>
           );
         })}
       </div>
       {mode === "live" && (
         <ConnectionFallback
+          expanded={!!error}
           busy={busy}
           onInstagram={() => onConnect("instagram", "facebook_login")}
           onRefresh={onSync}

@@ -1,3 +1,5 @@
+import { connectionErrorMessage } from "./domains/accounts/connection-errors";
+import { canConnectPlatform } from "./shared/platforms";
 import {
   Notifications,
   useNotifications,
@@ -225,9 +227,7 @@ export default function App() {
       setNotice(
         q.has("error")
           ? {
-              text:
-                q.get("error_message") ??
-                "Account connection was not completed.",
+              text: connectionErrorMessage(q),
               error: true,
             }
           : {
@@ -278,7 +278,7 @@ export default function App() {
     platform: string,
     loginMethod?: "instagram_login" | "facebook_login",
   ) {
-    if (mode === "demo") return;
+    if (mode === "demo" || !canConnectPlatform(platform)) return;
     void perform("Connecting…", async () => {
       saveStored("signal:connection:pending", platform);
       const result = await api.connect(platform, loginMethod),
@@ -715,6 +715,7 @@ export default function App() {
           )}
           {route.view === "connections" ? (
             <Connections
+              error={notice?.error ? notice.text : ""}
               mode={mode}
               accounts={workspace.accounts}
               busy={!!busy}

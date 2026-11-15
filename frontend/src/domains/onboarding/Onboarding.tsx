@@ -19,7 +19,7 @@ import type { SocialAccount } from "../../api/types";
 import type { ProductInput } from "../../api/outreach-types";
 import { Button } from "../../shared/ui";
 import { PlatformBadge } from "../../shared/PlatformBadge";
-import { SOCIAL_PLATFORMS } from "../../shared/platforms";
+import { SOCIAL_PLATFORMS, canConnectPlatform } from "../../shared/platforms";
 import { readStored, saveStored, safeExternalUrl } from "../../shared/storage";
 import { configureDemo, demoAccounts } from "../demo/workspace";
 import { resetDemoOutreach } from "../demo/outreach";
@@ -138,6 +138,7 @@ export function Onboarding({
     platform: string,
     loginMethod?: "instagram_login" | "facebook_login",
   ) {
+    if (!canConnectPlatform(platform)) return;
     if (demo) {
       const channels = [...new Set([...state.channels, platform])];
       configureDemo(channels);
@@ -465,36 +466,35 @@ export function Onboarding({
                   </p>
                   <div className="demo-networks">
                     {SOCIAL_PLATFORMS.map(([id, label], i) => {
+                      const available = canConnectPlatform(id);
                       const connected =
-                        demo && accounts.some((a) => a.platform === id);
+                        available && demo && accounts.some((a) => a.platform === id);
                       return (
                         <motion.button
                           key={id}
                           className={
-                            "demo-network " + (connected ? "connected" : "")
+                            "demo-network " + (connected ? "connected" : "") + (available ? "" : " unavailable")
                           }
                           initial={{ opacity: 0, y: reduce ? 0 : 8 }}
-                          animate={{ opacity: 1, y: 0 }}
+                          animate={{ opacity: available ? 1 : 0.45, y: 0 }}
                           transition={{ delay: reduce ? 0 : i * 0.025 }}
-                          disabled={busy || (!demo && id === "bluesky")}
+                          disabled={busy || !available}
                           onClick={() => void connect(id)}
                           title={
-                            id === "bluesky"
-                              ? "Connect in Zernio, then refresh accounts"
+                            !available
+                              ? "Not available yet"
                               : undefined
                           }
                         >
                           <PlatformBadge platform={id} />
                           <strong>{label}</strong>
-                          <span>{connected ? "✓" : "+"}</span>
+                          <span>{available ? (connected ? "✓" : "+") : ""}</span>
                           <small>
-                            {connected
-                              ? "Connected"
-                              : id === "snapchat"
-                                ? "Closed beta"
-                                : id === "bluesky" && !demo
-                                  ? "Connect through Zernio"
-                                  : "Connect account"}
+                            {!available
+                              ? "Not available yet"
+                              : connected
+                                ? "Connected"
+                                : "Connect account"}
                           </small>
                         </motion.button>
                       );
@@ -511,6 +511,7 @@ export function Onboarding({
                         ))}
                       </div>
                       <ConnectionFallback
+                        expanded={!!error}
                         busy={busy || loading}
                         onInstagram={() =>
                           void connect("instagram", "facebook_login")

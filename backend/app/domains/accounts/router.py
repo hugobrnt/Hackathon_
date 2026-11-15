@@ -93,6 +93,8 @@ async def connect_callback(
     error: str | None = None,
     platform: str | None = None,
     error_message: str | None = None,
+    request_id: Annotated[str | None, Query(max_length=200)] = None,
+    stage: Annotated[str | None, Query(max_length=100)] = None,
     signal_state: str | None = None,
 ) -> RedirectResponse:
     frontend = settings.frontend_url.rstrip("/") + "/"
@@ -112,6 +114,10 @@ async def connect_callback(
         }
         if error_message:
             params["error_message"] = error_message
+        if request_id:
+            params["request_id"] = request_id
+        if stage:
+            params["stage"] = stage
         return RedirectResponse(f"{frontend}?{urlencode(params)}", status_code=307)
 
     try:
