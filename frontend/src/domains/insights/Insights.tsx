@@ -1,15 +1,12 @@
+import "./insights.css";
 import { reportTourAction } from "../onboarding/tour-model";
-import { useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import type { Intent, PostDetail, PostIntentStats } from "../../api/types";
-import {
-  aggregate,
-  INTENTS,
-  intentLabels,
-  intentActions,
-  isAudienceComment,
-} from "../analytics/model";
-import { Comment } from "../posts/DetailDialog";
+import { aggregate, INTENTS, intentLabels } from "../analytics/model";
+import { groupProductInsights, type ProductInsight } from "./model";
 import { Button, Heading, Metric } from "../../shared/ui";
+import { PlatformBadge } from "../../shared/PlatformBadge";
+import { formatDate } from "../../shared/format";
 export function Insights({
   posts,
   details,
@@ -29,147 +26,162 @@ export function Insights({
   query: string;
   onOpen: (id: number) => void;
 }) {
-  const [filter, setFilter] = useState<Intent | "all">(initial);
-  const a = aggregate(posts),
-    comments = details
-      .flatMap((d) =>
-        d.comments
-          .filter(isAudienceComment)
-          .map((m) => ({ message: m, post: d.post })),
-      )
-      .filter(
-        ({ message: m }) =>
-          (filter === "all" || m.classification?.intent === filter) &&
-          m.text.toLowerCase().includes(query.toLowerCase()),
-      );
-  const [limit, setLimit] = useState(30);
+  const [filter, setFilter] = useState<Intent | "all">(initial),
+    [postId, setPostId] = useState("all");
+  const selectedPosts = posts.filter(
+    (p) => postId === "all" || String(p.post.id) === postId,
+  );
+  const a = aggregate(selectedPosts);
+  const groups = useMemo(
+    () =>
+      groupProductInsights(
+        details.filter((d) => postId === "all" || String(d.post.id) === postId),
+      ),
+    [details, postId],
+  );
+  const visible = groups.filter(
+    (g) =>
+      (filter === "all" || filter === g.intent) &&
+      (g.title.toLowerCase().includes(query.toLowerCase()) ||
+        g.evidence.some((e) =>
+          e.message.text.toLowerCase().includes(query.toLowerCase()),
+        )),
+  );
   return (
     <>
-      <Heading title="Insights" />
+      <Heading title="Product insights" />
       {scope}
       <div className="metrics-grid">
         <Metric
           label="Purchase intent"
           value={a.intents.purchase_intent}
-          hint="Explicit buying or trial signals"
           accent
         />
-        <Metric
-          label="Feature requests"
-          value={a.intents.feature_request}
-          hint="Requests to investigate"
-        />
-        <Metric
-          label="Objections"
-          value={a.intents.objection}
-          hint="Friction in the buying decision"
-        />
-        <Metric
-          label="Problem reports"
-          value={a.intents.support_complaint}
-          hint="Human follow-up first"
-        />
+        <Metric label="Feature requests" value={a.intents.feature_request} />
+        <Metric label="Objections" value={a.intents.objection} />
+        <Metric label="Problem reports" value={a.intents.support_complaint} />
       </div>
       <div className="filter-row chips">
         <button
           className={"chip " + (filter === "all" ? "selected" : "")}
-          onClick={() => {
-            setFilter("all");
-            setLimit(30);
-          }}
+          onClick={() => setFilter("all")}
         >
-          All signals
+          All insights
         </button>
-        {INTENTS.map((i) => (
+        {INTENTS.filter((i) => i !== "neutral_spam").map((i) => (
           <button
-            className={"chip " + (filter === i ? "selected" : "")}
             key={i}
+            className={"chip " + (filter === i ? "selected" : "")}
             data-tour={i === "feature_request" ? "feature-filter" : undefined}
-            onClick={() => {
-              if (i === "feature_request") reportTourAction("feature-request");
-              setFilter(i);
-              setLimit(30);
-            }}
+            onClick={() => setFilter(i)}
           >
             {intentLabels[i]} <span>{a.intents[i]}</span>
           </button>
         ))}
       </div>
-      <div className="insights-grid">
-        <section className="panel">
-          <span className="eyebrow">WHAT TO KEEP, FIX AND EXPLORE</span>
-          <h2>Signals → decisions</h2>
-          <table className="insight-table">
-            <thead>
-              <tr>
-                <th>Signal</th>
-                <th>Comments</th>
-                <th>Next move</th>
-              </tr>
-            </thead>
-            <tbody>
-              {INTENTS.filter((i) => i !== "neutral_spam").map((i) => (
-                <tr key={i}>
-                  <th>
-                    <button
-                      className="text-link"
-                      onClick={() => {
-                        setFilter(i);
-                        setLimit(30);
-                      }}
-                    >
-                      <span className={"dot intent-" + i} />
-                      {intentLabels[i]}
-                    </button>
-                  </th>
-                  <td>{a.intents[i]}</td>
-                  <td>{intentActions[i]}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
-        <section className="panel evidence-panel">
-          <div className="section-heading">
-            <h2>
-              {filter === "all" ? "Comment evidence" : intentLabels[filter]}
-            </h2>
-            <span className="pill">{comments.length} comments</span>
-          </div>
-          {loading ? (
-            <p role="status" className="loading">
-              Loading source comments…
-            </p>
-          ) : error ? (
-            <p className="notice notice--error" role="alert">
-              {error}
-            </p>
-          ) : !comments.length ? (
-            <p className="empty-inline">
-              No comments match this category or search.
-            </p>
-          ) : (
-            <>
-              {comments.slice(0, limit).map(({ message, post }) => (
-                <div className="evidence-source" key={message.id}>
-                  <Comment message={message} />
-                  <button
-                    className="text-link small"
-                    onClick={() => onOpen(post.id)}
-                  >
-                    {post.platform} · {post.caption.slice(0, 65)} ↗
-                  </button>
-                </div>
-              ))}
-              {comments.length > limit && (
-                <Button onClick={() => setLimit((l) => l + 30)}>
-                  Load 30 more comments
-                </Button>
-              )}
-            </>
-          )}
-        </section>
+      <div className="section-heading product-insight-heading">
+        <span className="muted small">
+          {loading ? "Grouping comments…" : `${visible.length} insights`}
+        </span>
+        <label className="filter">
+          <select
+            aria-label="Insights post"
+            value={postId}
+            onChange={(e) => setPostId(e.target.value)}
+          >
+            <option value="all">All posts</option>
+            {posts.map((p) => (
+              <option key={p.post.id} value={p.post.id}>
+                {p.post.platform} · {p.post.caption || "Untitled post"}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
+      {loading ? (
+        <p role="status" className="loading">
+          Loading comment evidence…
+        </p>
+      ) : error ? (
+        <p role="alert" className="notice notice--error">
+          {error}
+        </p>
+      ) : !visible.length ? (
+        <div className="panel empty-inline">
+          No product insights match these filters.
+        </div>
+      ) : (
+        <div className="product-insight-list">
+          {visible.map((g) => (
+            <InsightRow key={g.id + ":" + postId} insight={g} onOpen={onOpen} />
+          ))}
+        </div>
+      )}
     </>
+  );
+}
+function InsightRow({
+  insight: g,
+  onOpen,
+}: {
+  insight: ProductInsight;
+  onOpen: (id: number) => void;
+}) {
+  const [limit, setLimit] = useState(5);
+  return (
+    <details
+      className="panel product-insight"
+      onToggle={(e) => {
+        if (e.currentTarget.open && g.intent === "feature_request")
+          reportTourAction("feature-request");
+      }}
+    >
+      <summary>
+        <span className={"insight-category intent-" + g.intent}>
+          {intentLabels[g.intent]}
+        </span>
+        <span className="product-insight-title">{g.title}</span>
+        <span className="insight-count">
+          <strong>{g.evidence.length}</strong>{" "}
+          {g.evidence.length === 1 ? "comment" : "comments"} · {g.posts}{" "}
+          {g.posts === 1 ? "post" : "posts"}
+        </span>
+        <span className="insight-networks">
+          {g.channels.map((p) => (
+            <PlatformBadge key={p} platform={p} />
+          ))}
+        </span>
+        <span className="insight-expand" aria-hidden="true">
+          ⌄
+        </span>
+      </summary>
+      <div className="insight-evidence">
+        <div className="section-heading">
+          <h3>Supporting comments</h3>
+          {!!g.review && <span className="pill">{g.review} to review</span>}
+        </div>
+        {g.evidence.slice(0, limit).map(({ message: m, post: p }) => (
+          <article className="insight-comment" key={m.account_id + ":" + m.id}>
+            <header>
+              <strong>{m.author_name ?? "Unknown author"}</strong>
+              <span>{formatDate(m.created_time)}</span>
+              {m.classification?.needs_review && (
+                <span className="pill">Needs review</span>
+              )}
+            </header>
+            <p>{m.text}</p>
+            <button className="insight-source" onClick={() => onOpen(p.id)}>
+              <PlatformBadge platform={p.platform} label />
+              <span>{p.caption || "Untitled post"} ↗</span>
+            </button>
+          </article>
+        ))}
+        {g.evidence.length > limit && (
+          <Button onClick={() => setLimit((n) => n + 10)}>
+            Show more comments ({g.evidence.length - limit})
+          </Button>
+        )}
+      </div>
+    </details>
   );
 }

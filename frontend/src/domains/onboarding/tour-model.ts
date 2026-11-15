@@ -35,7 +35,7 @@ export const tourSteps: {
     view: "insights",
     target: "feature-filter",
     label: "What should you build next?",
-    text: "Click Feature request to reveal the comments behind product requests.",
+    text: "Choose Feature request, then open an insight to read the comments behind it.",
     next: "Try a conversation",
     action: "feature-request",
   },

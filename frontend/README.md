@@ -85,3 +85,9 @@ pnpm build:frontend
 ```
 
 Node 24+ is recommended. Tests cover metric denominators, weighted rates, UTC dates, demo isolation, DM lifecycle/idempotency, CTR, F7/F8 HTTP contracts, cross-channel evidence and partial product synchronization. External sends are mocked in tests.
+
+## Product insight list
+
+Insights groups classified audience comments by intent and recognized product topics (e.g. pricing, platform availability, login and exports). These are deterministic topic groups, not generated AI summaries or recommendations. Unrecognized topics retain the original comment text as the heading. Neutral, unclassified and brand comments are excluded from this list; purchase-intent metric denominators stay unchanged.
+
+Each expandable insight contains the original comments, their authors, dates, review flags, channels and source posts. Counts refer to comments, not unique prospects. Channel and post filters narrow both metrics and evidence. Tests verify deduplication, attribution and preservation of distinct intents.
