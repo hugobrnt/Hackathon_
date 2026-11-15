@@ -17,6 +17,8 @@ export interface SocialAccount {
   username: string | null;
   profile_id: string | null;
   is_demo: boolean;
+  is_active?: boolean | null;
+  needs_reconnection?: boolean | null;
   connected_at: string;
   last_imported_at: string | null;
 }

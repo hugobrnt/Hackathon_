@@ -224,3 +224,32 @@ def test_callback_preserves_provider_failure_reference(
     assert query["request_id"] == ["request-42"]
     assert query["stage"] == ["authorize"]
     assert client.get("/accounts", params={"sync": False}).json() == []
+
+
+def test_sync_retains_invalid_authorization_until_provider_confirms_reconnection(
+    client: TestClient, zernio_mock: respx.MockRouter
+) -> None:
+    remote = {"_id": "acc-1", "platform": "instagram", "profileId": "profile-1", "username": "hugo", "isActive": False, "needsReconnection": True}
+    route = zernio_mock.get("/accounts").respond(json={"accounts": [remote]})
+    result = client.post("/accounts/sync").json()[0]
+    assert result["is_active"] is False
+    assert result["needs_reconnection"] is True
+    assert client.get("/accounts?sync=false").json()[0]["needs_reconnection"] is True
+    route.respond(json={"accounts": [{**remote, "isActive": True, "needsReconnection": False}]})
+    result = client.post("/accounts/sync").json()[0]
+    assert result["id"] == "acc-1"
+    assert result["is_active"] is True
+    assert result["needs_reconnection"] is False
+
+
+def test_callback_does_not_claim_success_for_inactive_authorization(
+    client: TestClient, zernio_mock: respx.MockRouter
+) -> None:
+    route = zernio_mock.get("/connect/instagram").respond(json={"authUrl": "https://zernio.com/oauth"})
+    client.post("/accounts/connect/instagram?reconnect_account_id=acc-1")
+    state = parse_qs(urlparse(route.calls.last.request.url.params["redirect_url"]).query)["signal_state"][0]
+    zernio_mock.get("/accounts").respond(json={"accounts": [{"_id": "acc-1", "profileId": "profile-1", "platform": "instagram", "isActive": False, "needsReconnection": True}]})
+    response = client.get("/accounts/callback", params={"signal_state": state, "connected": "instagram", "accountId": "acc-1"})
+    query = parse_qs(urlparse(response.headers["location"]).query)
+    assert query["error"] == ["reconnect_required"]
+    assert "connected" not in query

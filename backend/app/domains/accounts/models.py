@@ -16,6 +16,8 @@ class SocialAccount(SQLModel, table=True):
     platform: str = Field(index=True)
     username: str | None = None
     profile_id: str | None = None
+    is_active: bool | None = None
+    needs_reconnection: bool | None = None
     is_demo: bool = False
     connected_at: datetime = Field(default_factory=utc_now)
     last_imported_at: datetime | None = None

@@ -141,7 +141,11 @@ async def connect_callback(
             verified.platform,
             verified.username or verified.display_name,
             verified.profile_id_str,
+            is_active=verified.is_active,
+            needs_reconnection=verified.needs_reconnection,
         )
+        if verified.is_active is False or verified.needs_reconnection is True:
+            raise ZernioError(409, "Instagram authorization is still invalid. Reconnect this account and complete all permission steps.", "reconnect_required")
     except ZernioError as exc:
         query = urlencode(
             {"error": exc.code or "zernio_error", "error_message": exc.message}

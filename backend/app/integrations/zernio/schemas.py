@@ -30,6 +30,8 @@ class ProfilesResponse(ZernioModel):
 class Account(ZernioModel):
     id: str = Field(validation_alias=AliasChoices("_id", "id", "accountId"))
     platform: str
+    is_active: bool | None = Field(default=None, validation_alias=AliasChoices("isActive", "is_active"))
+    needs_reconnection: bool | None = Field(default=None, validation_alias=AliasChoices("needsReconnection", "needs_reconnection"))
     username: str | None = None
     display_name: str | None = Field(
         default=None, validation_alias=AliasChoices("displayName", "display_name")

@@ -4,6 +4,7 @@ import {
   type ReplyPreferences,
 } from "../../api/replies";
 import { ReplyPreferenceFields } from "../community/ReplyPreferencesForm";
+import { needsReconnection } from "../accounts/connection-status";
 import { ConnectionFallback } from "../accounts/ConnectionFallback";
 import { DraftCatalog } from "../products/DraftCatalog";
 import { saveCatalogAcrossChannels } from "../products/api";
@@ -130,6 +131,7 @@ export function Onboarding({
       });
     return () => c.abort();
   }, [demo, signedIn, state.channels.join("|")]);
+  const usableAccounts = accounts.filter((a) => !needsReconnection(a));
   function go(step: number) {
     setError("");
     setState((s) => ({ ...s, step }));
@@ -137,6 +139,7 @@ export function Onboarding({
   async function connect(
     platform: string,
     loginMethod?: "instagram_login" | "facebook_login",
+    reconnectAccountId?: string,
   ) {
     if (!canConnectPlatform(platform)) return;
     if (demo) {
@@ -152,7 +155,8 @@ export function Onboarding({
     try {
       saveStored("signal:live:onboarding-active", true);
       saveStored("signal:connection:pending", platform);
-      const r = await api.connect(platform, loginMethod),
+      saveStored("signal:connection:pending-account", reconnectAccountId ?? "");
+      const r = await api.connect(platform, loginMethod, reconnectAccountId),
         url = safeExternalUrl(r.auth_url);
       if (!url?.startsWith("https://"))
         throw new Error("Connection URL is unavailable. Please retry.");
@@ -170,9 +174,11 @@ export function Onboarding({
       const connected = (await api.syncAccounts()).filter((a) => !a.is_demo);
       setAccounts(connected);
       const pending = readStored<string>("signal:connection:pending", "");
+      const pendingAccount = readStored<string>("signal:connection:pending-account", "");
       if (
-        !connected.length ||
-        (pending && !connected.some((a) => a.platform === pending))
+        (pendingAccount && !connected.some((a) => a.id === pendingAccount && !needsReconnection(a))) ||
+        !connected.some((a) => !needsReconnection(a)) ||
+        (pending && !connected.some((a) => a.platform === pending && !needsReconnection(a)))
       ) {
         setError(
           "No new authorized account found in Zernio. Finish the authorization, try Facebook below, or connect in Zernio and check again.",
@@ -186,7 +192,7 @@ export function Onboarding({
   }
   async function persistReplies() {
     const results = await Promise.allSettled(
-      accounts.map((a) =>
+      usableAccounts.map((a) =>
         saveReplies(mode, a.id, state.replies ?? defaultReplies),
       ),
     );
@@ -229,18 +235,18 @@ export function Onboarding({
         is_active: true,
       }));
       if (demo) {
-        for (const a of accounts) replaceDemoCatalog(a.id, inputs);
+        for (const a of usableAccounts) replaceDemoCatalog(a.id, inputs);
         resetDemoOutreach();
       } else {
         for (const input of inputs)
           await saveCatalogAcrossChannels(
             mode,
-            accounts.map((a) => a.id),
+            usableAccounts.map((a) => a.id),
             input,
           );
       }
       let failed = false;
-      for (const a of accounts) {
+      for (const a of usableAccounts) {
         if (state.imported.includes(a.id)) continue;
         setResults((r) => ({ ...r, [a.id]: "Importing…" }));
         try {
@@ -296,7 +302,7 @@ export function Onboarding({
     onComplete();
   }
   const ready =
-    accounts.length > 0 && accounts.every((a) => state.imported.includes(a.id));
+    usableAccounts.length > 0 && usableAccounts.every((a) => state.imported.includes(a.id));
   return (
     <div className="demo-onboarding">
       <header className="demo-onboarding-header">
@@ -507,6 +513,11 @@ export function Onboarding({
                           <span className="pill" key={a.id}>
                             <PlatformBadge platform={a.platform} />@
                             {a.username ?? a.platform}
+                            {needsReconnection(a) && (
+                              <Button disabled={busy || loading} onClick={() => void connect(a.platform, undefined, a.id)}>
+                                Reconnect required →
+                              </Button>
+                            )}
                           </span>
                         ))}
                       </div>
@@ -532,12 +543,12 @@ export function Onboarding({
                       ← Back
                     </Button>
                     <span className="onboarding-connected-count" role="status">
-                      {accounts.length}{" "}
-                      {accounts.length === 1 ? "channel" : "channels"} connected
+                      {usableAccounts.length}{" "}
+                      {usableAccounts.length === 1 ? "channel" : "channels"} connected
                     </span>
                     <Button
                       primary
-                      disabled={busy || loading || !accounts.length}
+                      disabled={busy || loading || !usableAccounts.length}
                       onClick={() => go(4)}
                     >
                       Continue →
@@ -554,7 +565,7 @@ export function Onboarding({
                     together.
                   </p>
                   <div className="import-stages">
-                    {accounts.map((a) => (
+                    {usableAccounts.map((a) => (
                       <div
                         key={a.id}
                         className={
@@ -583,7 +594,7 @@ export function Onboarding({
                     </Button>
                     <Button
                       primary
-                      disabled={busy || !accounts.length}
+                      disabled={busy || !usableAccounts.length}
                       onClick={() =>
                         ready
                           ? void continueWithReplies(5)

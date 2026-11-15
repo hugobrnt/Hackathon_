@@ -1,3 +1,4 @@
+import { needsReconnection } from "./connection-status";
 import { ConnectionFallback } from "./ConnectionFallback";
 import type { SocialAccount } from "../../api/types";
 import type { DataMode } from "../../api/source";
@@ -21,7 +22,7 @@ export function Connections({
   mode: DataMode;
   accounts: SocialAccount[];
   busy: boolean;
-  onConnect: (p: string, method?: "instagram_login" | "facebook_login") => void;
+  onConnect: (p: string, method?: "instagram_login" | "facebook_login", reconnectAccountId?: string) => void;
   onSync: () => void;
   onImport: (id: string) => void;
   onDemo: () => void;
@@ -95,13 +96,19 @@ export function Connections({
               <div>
                 <strong>{a.username ?? a.platform}</strong>
                 <small>
-                  {a.platform} · {a.is_demo ? "Sample data" : "Connected"}
+                  {a.platform} · {a.is_demo ? "Sample data" : needsReconnection(a) ? "Reconnect required" : a.is_active === true ? "Connected" : "Status not checked — refresh accounts"}
                   {a.last_imported_at ? " · Previously imported" : ""}
                 </small>
               </div>
-              <Button onClick={() => onImport(a.id)} disabled={busy}>
-                {a.is_demo ? "Open demo" : "Import posts & comments"}
-              </Button>
+              {needsReconnection(a) ? (
+                <Button primary onClick={() => onConnect(a.platform, undefined, a.id)} disabled={busy || !canConnectPlatform(a.platform)}>
+                  Reconnect @{a.username ?? a.platform}
+                </Button>
+              ) : (
+                <Button onClick={() => onImport(a.id)} disabled={busy}>
+                  {a.is_demo ? "Open demo" : "Import posts & comments"}
+                </Button>
+              )}
             </div>
           ))
         )}

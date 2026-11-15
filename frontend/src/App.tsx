@@ -1,3 +1,4 @@
+import { needsReconnection } from "./domains/accounts/connection-status";
 import { connectionErrorMessage } from "./domains/accounts/connection-errors";
 import { canConnectPlatform } from "./shared/platforms";
 import {
@@ -277,11 +278,13 @@ export default function App() {
   function connect(
     platform: string,
     loginMethod?: "instagram_login" | "facebook_login",
+    reconnectAccountId?: string,
   ) {
     if (mode === "demo" || !canConnectPlatform(platform)) return;
     void perform("Connecting…", async () => {
       saveStored("signal:connection:pending", platform);
-      const result = await api.connect(platform, loginMethod),
+      saveStored("signal:connection:pending-account", reconnectAccountId ?? "");
+      const result = await api.connect(platform, loginMethod, reconnectAccountId),
         url = safeExternalUrl(result.auth_url);
       if (!url || !url.startsWith("https://"))
         throw new Error("The API did not return a secure authorization URL.");
@@ -293,8 +296,11 @@ export default function App() {
     void perform("Refreshing accounts…", async () => {
       const accounts = await api.syncAccounts();
       setRevision((r) => r + 1);
+      const reconnect = accounts.filter(needsReconnection);
       setNotice(
-        accounts.length
+        reconnect.length
+          ? { text: `Reconnect required: ${reconnect.map((a) => a.username ?? a.platform).join(", ")}. Open Connect a channel to restore authorization.`, error: true }
+          : accounts.length
           ? { text: `${accounts.length} authorized accounts found in Zernio.` }
           : {
               text: "No authorized account found. Complete authorization, try the Facebook option, or connect in Zernio and check again.",

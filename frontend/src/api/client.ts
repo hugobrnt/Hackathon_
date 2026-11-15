@@ -58,13 +58,16 @@ export const api = {
   connect: (
     platform: string,
     loginMethod?: "instagram_login" | "facebook_login",
-  ) =>
-    request<{ auth_url: string }>(
-      "/accounts/connect/" +
-        encodeURIComponent(platform) +
-        (loginMethod ? "?login_method=" + loginMethod : ""),
+    reconnectAccountId?: string,
+  ) => {
+    const params = new URLSearchParams();
+    if (loginMethod) params.set("login_method", loginMethod);
+    if (reconnectAccountId) params.set("reconnect_account_id", reconnectAccountId);
+    return request<{ auth_url: string }>(
+      "/accounts/connect/" + encodeURIComponent(platform) + (params.size ? "?" + params : ""),
       { method: "POST" },
-    ),
+    );
+  },
   importAccount: (id: string) =>
     request<ImportResult>("/accounts/" + encodeURIComponent(id) + "/import", {
       method: "POST",

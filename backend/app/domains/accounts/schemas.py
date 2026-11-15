@@ -33,6 +33,8 @@ class SocialAccountRead(BaseModel):
     platform: str
     username: str | None
     profile_id: str | None
+    is_active: bool | None = None
+    needs_reconnection: bool | None = None
     is_demo: bool
     connected_at: datetime
     last_imported_at: datetime | None
