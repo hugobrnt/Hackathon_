@@ -41,6 +41,7 @@ export function BrandPosts({
   const failed = selected.filter((r) => r.error);
   return (
     <PostsView
+      mode={mode}
       posts={posts}
       query={query}
       accounts={accounts}

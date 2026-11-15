@@ -1,3 +1,4 @@
+import type { DataMode } from "../../api/source";
 import { PlatformBadge } from "../../shared/PlatformBadge";
 import { useMemo, useState, type ReactNode } from "react";
 import type {
@@ -17,6 +18,7 @@ export const sortLabels: Partial<Record<PostSortKey, string>> = {
   recent: "Most recent",
 };
 export function PostsView({
+  mode,
   posts,
   query,
   onOpen,
@@ -24,6 +26,7 @@ export function PostsView({
   accounts = [],
   loading = false,
 }: {
+  mode: DataMode;
   scope?: ReactNode;
   accounts?: SocialAccount[];
   loading?: boolean;
@@ -126,6 +129,8 @@ export function PostsView({
     <>
       {boostPost && (
         <BoostDialog
+          key={mode + ":" + boostPost.post.id}
+          mode={mode}
           post={boostPost}
           onClose={() => setBoostPost(null)}
           onOpen={onOpen}
