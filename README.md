@@ -1,5 +1,7 @@
 # Zernio_Hackathon
 
+Signal turns your social comments into sales: it spots buyers, shows which posts really sell, and DMs each prospect the right product within a minute.
+
 ## Table of contents
 
 Documentation for the Zernio Hackathon project is provided in the following files:

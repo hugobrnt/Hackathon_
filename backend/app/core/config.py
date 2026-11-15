@@ -42,6 +42,8 @@ class Settings(BaseSettings):
 
     # F13: automatic replies of the agent in one conversation, before a human takes over.
     agent_max_replies: int = 3
+    # F13: the agent also answers the prospects who write a DM first (purchase, question, objection).
+    agent_reply_inbound_dms: bool = True
 
     database_url: str = f"sqlite:///{BACKEND_DIR / 'data.db'}"
     public_base_url: str = "http://localhost:8000"

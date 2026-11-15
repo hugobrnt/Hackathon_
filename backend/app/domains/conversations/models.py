@@ -17,15 +17,22 @@ class ConversationStatus(StrEnum):
 AGENT_STATUSES = (ConversationStatus.waiting_reply, ConversationStatus.active)
 
 
+class ConversationSource(StrEnum):
+    auto_dm = "auto_dm"  # Started by an auto-DM after a comment (F7).
+    inbound_dm = "inbound_dm"  # Started by the prospect, who wrote a DM first.
+
+
 class AgentConversation(SQLModel, table=True):
-    """A DM conversation started by an auto-DM (F13)."""
+    """A DM conversation that the agent follows (F13): after an auto-DM, or after an inbound DM."""
 
     __tablename__ = "agent_conversations"
 
     id: int | None = Field(default=None, primary_key=True)
     account_id: str = Field(index=True)
-    dm_attempt_id: int = Field(foreign_key="dm_attempts.id", unique=True)
-    post_id: int = Field(foreign_key="posts.id", index=True)
+    source: ConversationSource = ConversationSource.auto_dm
+    dm_attempt_id: int | None = Field(default=None, foreign_key="dm_attempts.id", unique=True)
+    post_id: int | None = Field(default=None, foreign_key="posts.id", index=True)
+    origin_message_id: int | None = Field(default=None, description="The inbound DM that started it.")
     product_id: int | None = None
     recipient_id: str | None = Field(default=None, index=True)
     recipient_name: str | None = None
