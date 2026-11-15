@@ -14,6 +14,8 @@ from app.domains.accounts.models import utc_now
 from app.domains.accounts.service import upsert_account
 from app.domains.content import repository
 from app.domains.ingestion.schemas import ImportResult
+from app.domains.products.schemas import ProductUpdate
+from app.domains.products.service import get_product, upsert_product
 from app.domains.ingestion.service import save_comments, save_dms, save_post
 from app.integrations.zernio.schemas import Comment, Conversation, DirectMessage, PlatformPost
 
@@ -38,6 +40,7 @@ class DemoConversation(Conversation):
 
 class DemoDataset(BaseModel):
     account: DemoAccount
+    product: ProductUpdate | None = None
     posts: list[DemoPost]
     conversations: list[DemoConversation] = []
 
@@ -52,6 +55,8 @@ def load_demo_data(session: Session, path: Path = DEMO_DATA_PATH) -> ImportResul
         profile_id=None,
         is_demo=True,
     )
+    if dataset.product is not None and get_product(session, account.id) is None:
+        upsert_product(session, account.id, dataset.product)
     result = ImportResult(account_id=account.id)
     for demo_post in dataset.posts:
         post = save_post(session, account, demo_post)

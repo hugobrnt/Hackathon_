@@ -9,6 +9,8 @@ from app.core.db import get_engine, get_session
 from app.core.errors import ZERNIO_ERROR_RESPONSES, ErrorResponse
 from app.domains.classification.classifiers import Classifier, get_classifier
 from app.domains.classification.service import classify_in_background
+from app.domains.outreach.service import auto_dm_in_background
+from app.domains.outreach.writers import DmWriter, get_dm_writer
 from app.domains.webhooks import service
 from app.domains.webhooks.schemas import (
     RegisterWebhookRequest,
@@ -17,7 +19,7 @@ from app.domains.webhooks.schemas import (
     WebhookRegistration,
     WebhookTestResult,
 )
-from app.integrations.zernio.client import ZernioClient, get_zernio_client
+from app.integrations.zernio.client import ZernioClient, ZernioClientFactory, get_zernio_client, get_zernio_client_factory
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 
@@ -33,7 +35,8 @@ SettingsDep = Annotated[Settings, Depends(get_settings)]
     description=(
         "Receives `comment.received`, `message.received` and `message.sent`. The endpoint checks "
         "the HMAC-SHA256 signature in `X-Zernio-Signature`, ignores duplicate event ids, and "
-        "stores the comment or the DM. New messages are classified in the background (F3). "
+        "stores the comment or the DM. New messages are classified in the background (F3), then the "
+        "auto-DM runs for the posts where it is on (F7). "
         "Other events get the status `ignored`."
     ),
     responses={
@@ -55,6 +58,8 @@ async def receive_zernio_webhook(
     background_tasks: BackgroundTasks,
     engine: Annotated[Engine, Depends(get_engine)],
     classifier: Annotated[Classifier, Depends(get_classifier)],
+    dm_writer: Annotated[DmWriter, Depends(get_dm_writer)],
+    zernio_factory: Annotated[ZernioClientFactory, Depends(get_zernio_client_factory)],
     x_zernio_signature: Annotated[str | None, Header()] = None,
 ) -> WebhookAck:
     if not settings.zernio_webhook_secret:
@@ -70,6 +75,8 @@ async def receive_zernio_webhook(
     if ack.message_ids:
         # Answer Zernio at once; the LLM call runs after the response.
         background_tasks.add_task(classify_in_background, engine, classifier, ack.message_ids)
+        # The tasks run in order: the auto-DM (F7) reads the classification of the step before.
+        background_tasks.add_task(auto_dm_in_background, engine, dm_writer, zernio_factory, ack.message_ids)
     return ack
 
 
