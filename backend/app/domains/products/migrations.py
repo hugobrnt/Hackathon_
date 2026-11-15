@@ -6,6 +6,8 @@ from sqlalchemy import Engine, inspect, text
 def rename_legacy_products(engine: Engine) -> bool:
     """Before `create_all`: rename the old table. Returns True if a copy is needed after `create_all`."""
     inspector = inspect(engine)
+    if inspector.has_table("products_legacy"):
+        return True  # A previous start stopped between the rename and the copy (for example a reload).
     if not inspector.has_table("products"):
         return False
     columns = {c["name"] for c in inspector.get_columns("products")}

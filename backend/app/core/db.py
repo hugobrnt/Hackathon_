@@ -31,13 +31,17 @@ def init_db(engine: Engine | None = None) -> None:
     from app.domains.insights import models as _insights  # noqa: F401
     from app.domains.conversations import models as _conversations  # noqa: F401
 
+    from app.domains.conversations.migrations import copy_legacy_conversations, rename_legacy_conversations
     from app.domains.products.migrations import copy_legacy_products, rename_legacy_products
 
     engine = engine or get_engine()
     copy_products = rename_legacy_products(engine)
+    copy_conversations = rename_legacy_conversations(engine)
     SQLModel.metadata.create_all(engine)
     if copy_products:
         copy_legacy_products(engine)
+    if copy_conversations:
+        copy_legacy_conversations(engine)
     add_missing_columns(engine)
 
 

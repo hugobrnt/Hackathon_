@@ -1,5 +1,7 @@
 # Zernio_Hackathon
 
+Signal turns your social comments into sales: it spots buyers, shows which posts really sell, and DMs each prospect the right product within a minute.
+
 ## Table of contents
 
 Documentation for the Zernio Hackathon project is provided in the following files:
@@ -21,6 +23,8 @@ Documentation for the Zernio Hackathon project is provided in the following file
   - Developer Docs: [https://fastapi.tiangolo.com](https://fastapi.tiangolo.com)
 
 ## Quickstart
+
+**Judges: see [USER.md](USER.md) to run the guided demo in 5 minutes (no API key needed).**
 
 To start the full stack, use two terminals:
 
