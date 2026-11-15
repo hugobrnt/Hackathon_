@@ -2,7 +2,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.domains.insights.models import InsightCategory
+from app.domains.insights.models import InsightCategory, PostFormat
 
 
 class InsightsRunRequest(BaseModel):
@@ -49,3 +49,33 @@ class InsightsReport(BaseModel):
     writer: str = Field(description="Model that grouped the messages, or `heuristic`.")
     generated_at: datetime
     categories: list[CategoryInsights]
+
+
+class PostIdeasRequest(BaseModel):
+    account_id: str
+    product_id: int | None = Field(default=None, description="Optional: ideas that promote this product only.")
+
+
+class PostIdeaRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    title: str = Field(description="Short name of the idea.")
+    format: PostFormat
+    hook: str = Field(description="First line (or first seconds of the reel) that stops the scroll.")
+    outline: list[str] = Field(description="3 to 5 steps: slides of the carousel or scenes of the reel.")
+    caption: str = Field(description="Draft caption, ready to edit.")
+    call_to_action: str
+    rationale: str = Field(description="Which insight the idea answers, with the number of mentions.")
+    category: InsightCategory
+    theme_ids: list[int] = Field(description="Insight themes (F12) that the idea uses.")
+    product_id: int | None
+    writer: str
+    created_at: datetime
+
+
+class PostIdeasResult(BaseModel):
+    generation_id: str
+    account_id: str
+    insights_run_id: str
+    ideas: list[PostIdeaRead] = Field(description="3 ideas, each one from a different insight.")

@@ -24,6 +24,7 @@ from app.integrations.zernio.schemas import (
     BoostResponse,
     PostMetrics,
     ZernioAd,
+    CommentReplyResponse,
     PrivateReplyResult,
     SendMessageResponse,
     SentMessage,
@@ -185,6 +186,18 @@ class ZernioClient:
             headers={"Idempotency-Key": idempotency_key},
         )
         return SendMessageResponse.model_validate(data).data
+
+    async def reply_to_comment(
+        self, platform_post_id: str, comment_id: str, account_id: str, message: str, idempotency_key: str
+    ) -> str | None:
+        """Public reply under a comment (F16). Returns the id of the new comment."""
+        data = await self._request(
+            "POST",
+            f"/inbox/comments/{platform_post_id}",
+            json={"accountId": account_id, "message": message, "commentId": comment_id},
+            headers={"Idempotency-Key": idempotency_key},
+        )
+        return CommentReplyResponse.model_validate(data).data.comment_id
 
     async def sync_external_posts(self, account_id: str) -> None:
         """Ask Zernio to read the recent posts and their metrics from the platform now."""
