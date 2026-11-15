@@ -16,6 +16,7 @@ class TrackedLink(SQLModel, table=True):
     message_id: int = Field(foreign_key="messages.id", unique=True)
     recipient_id: str | None = None
     intent: str | None = None
+    product_id: int | None = Field(default=None, index=True)
     destination_url: str = Field(description="Landing URL with the UTM parameters.")
     click_count: int = Field(default=0, description="Human clicks (link-preview bots excluded).")
     bot_hits: int = 0

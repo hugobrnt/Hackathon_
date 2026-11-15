@@ -32,6 +32,9 @@ class ClassificationRead(BaseModel):
     model: str
     needs_review: bool
     classified_at: datetime
+    product_id: int | None = Field(default=None, description="Product of the catalog that the message is about (F7 ter).")
+    product_title: str | None = None
+    product_confidence: float | None = None
 
 
 class ClassificationRunRequest(BaseModel):
@@ -47,6 +50,7 @@ class ClassificationRunResult(BaseModel):
     fallback: int = 0
     failed: int = 0
     by_intent: dict[Intent, int] = Field(default_factory=dict)
+    with_product: int = Field(default=0, description="Messages linked to a product of the catalog (F7 ter).")
 
 
 class ManualClassification(BaseModel):

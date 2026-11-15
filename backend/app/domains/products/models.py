@@ -14,7 +14,7 @@ class BusinessType(StrEnum):
 
 
 class Product(SQLModel, table=True):
-    """What the user sells with an account (F7 bis). One product per account.
+    """One product or landing page of the catalog of an account (F7 bis).
 
     - saas: `landing_url` is the landing page, `description` is a free text on what the SaaS offers.
     - ecommerce: `landing_url` is the product page, `description` gives the facts
@@ -23,11 +23,12 @@ class Product(SQLModel, table=True):
 
     __tablename__ = "products"
 
-    account_id: str = Field(foreign_key="social_accounts.id", primary_key=True)
-    business_type: BusinessType = Field(
-        default=BusinessType.ecommerce, sa_column_kwargs={"server_default": BusinessType.ecommerce.value}
-    )
-    name: str
+    id: int | None = Field(default=None, primary_key=True)
+    account_id: str = Field(foreign_key="social_accounts.id", index=True)
+    business_type: BusinessType = BusinessType.ecommerce
+    title: str
     landing_url: str
     description: str
+    is_active: bool = Field(default=True, index=True)
+    created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime = Field(default_factory=utc_now)

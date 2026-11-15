@@ -14,6 +14,7 @@ from app.domains.classification.schemas import (
     ManualClassification,
 )
 from app.domains.content.models import Message
+from app.domains.products.matching import ProductMatcher, get_product_matcher
 
 router = APIRouter(tags=["classification"])
 
@@ -32,9 +33,12 @@ NOT_FOUND: dict[int | str, dict[str, Any]] = {404: {"model": ErrorResponse, "des
     ),
 )
 async def run_classification(
-    session: SessionDep, classifier: ClassifierDep, request: ClassificationRunRequest | None = None
+    session: SessionDep,
+    classifier: ClassifierDep,
+    matcher: Annotated[ProductMatcher, Depends(get_product_matcher)],
+    request: ClassificationRunRequest | None = None,
 ) -> ClassificationRunResult:
-    return await service.run_classification(session, classifier, request or ClassificationRunRequest())
+    return await service.run_classification(session, classifier, request or ClassificationRunRequest(), matcher)
 
 
 @router.post(

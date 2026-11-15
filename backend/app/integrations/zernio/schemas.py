@@ -241,3 +241,15 @@ class BoostResponse(ZernioModel):
     ad: ZernioAd
     message: str | None = None
     warnings: list[object] = []
+
+
+class SentMessage(ZernioModel):
+    message_id: str | None = Field(default=None, validation_alias=AliasChoices("messageId", "message_id"))
+    conversation_id: str | None = Field(
+        default=None, validation_alias=AliasChoices("conversationId", "conversation_id")
+    )
+
+
+class SendMessageResponse(ZernioModel):
+    success: bool = True
+    data: SentMessage = SentMessage()

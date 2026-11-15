@@ -23,10 +23,17 @@ LANDING = "https://shop.test/hoodie"
 
 PRODUCT = {
     "business_type": "ecommerce",
-    "name": "Hoodie bio",
-    "landing_url": "https://shop.test/product",
+    "title": "Hoodie bio",
+    "landing_url": LANDING,
     "description": "Hoodie en coton bio, 59 euros. Tailles XS a XXL. Retours gratuits 30 jours.",
 }
+
+
+def add_product(client: TestClient, **extra: object) -> int:
+    response = client.post("/accounts/acc-1/products", json={**PRODUCT, **extra})
+    assert response.status_code == 201, response.text
+    product_id: int = response.json()["id"]
+    return product_id
 
 
 def setup_post(session: Session) -> int:
@@ -68,8 +75,9 @@ def add_comment(
 
 
 def enable(client: TestClient, post_id: int, **extra: object) -> None:
-    client.put("/accounts/acc-1/product", json=PRODUCT)
-    response = client.put(f"/posts/{post_id}/auto-dm", json={"enabled": True, "landing_url": LANDING, **extra})
+    if not client.get("/accounts/acc-1/products").json():
+        add_product(client)
+    response = client.put(f"/posts/{post_id}/auto-dm", json={"enabled": True, **extra})
     assert response.status_code == 200, response.text
 
 
@@ -84,9 +92,9 @@ def test_settings_default_off_and_update(client: TestClient, session: Session) -
     assert client.get(f"/posts/{post_id}/auto-dm").json()["enabled"] is False
     enable(client, post_id)
     body = client.get(f"/posts/{post_id}/auto-dm").json()
-    assert (body["enabled"], body["landing_url"]) == (True, LANDING)
+    assert (body["enabled"], body["product_id"]) == (True, None)
     assert client.get("/posts/999/auto-dm").status_code == 404
-    assert client.put(f"/posts/{post_id}/auto-dm", json={"enabled": True, "landing_url": "not a url"}).status_code == 422
+    assert client.put(f"/posts/{post_id}/auto-dm", json={"enabled": True, "product_id": 999}).status_code == 400
 
 
 def test_run_sends_one_dm_per_person_and_post(client: TestClient, session: Session, zernio_mock: respx.MockRouter) -> None:
@@ -204,48 +212,7 @@ def test_preview(client: TestClient, session: Session) -> None:
 
 
 
-def test_product_crud(client: TestClient, session: Session) -> None:
-    setup_post(session)
-    assert client.get("/accounts/acc-1/product").status_code == 404
-    response = client.put("/accounts/acc-1/product", json=PRODUCT)
-    assert response.status_code == 200
-    assert client.get("/accounts/acc-1/product").json()["landing_url"] == PRODUCT["landing_url"]
-    assert client.put("/accounts/nope/product", json=PRODUCT).status_code == 404
-    assert client.put("/accounts/acc-1/product", json={**PRODUCT, "description": "court"}).status_code == 422
-    assert client.put("/accounts/acc-1/product", json={**PRODUCT, "landing_url": "pas une url"}).status_code == 422
-    assert client.put("/accounts/acc-1/product", json={**PRODUCT, "business_type": "b2b"}).status_code == 422
-    no_url = {k: v for k, v in PRODUCT.items() if k != "landing_url"}
-    assert client.put("/accounts/acc-1/product", json=no_url).status_code == 422
 
-
-def test_enable_requires_a_product(client: TestClient, session: Session) -> None:
-    post_id = setup_post(session)
-    response = client.put(f"/posts/{post_id}/auto-dm", json={"enabled": True})
-    assert response.status_code == 400 and "product" in response.json()["detail"]
-    # A landing URL on the post is not enough: the description is required too.
-    response = client.put(f"/posts/{post_id}/auto-dm", json={"enabled": True, "landing_url": LANDING})
-    assert response.status_code == 400
-    assert client.put(f"/posts/{post_id}/auto-dm", json={"enabled": False}).status_code == 200
-    client.put("/accounts/acc-1/product", json=PRODUCT)
-    assert client.put(f"/posts/{post_id}/auto-dm", json={"enabled": True}).status_code == 200
-
-
-def test_dm_uses_product_url_and_post_override(
-    client: TestClient, session: Session, zernio_mock: respx.MockRouter
-) -> None:
-    post_id = setup_post(session)
-    client.put("/accounts/acc-1/product", json=PRODUCT)
-    client.put(f"/posts/{post_id}/auto-dm", json={"enabled": True})
-    message_id = add_comment(session, post_id, "c1", "anis", Intent.purchase_intent)
-    draft = client.post(f"/messages/{message_id}/auto-dm/preview").json()
-    assert draft["tracked_url"] in draft["text"] and "Hoodie bio" in draft["text"]
-    target = client.get(draft["tracked_url"].replace(tracking_base(), "")).headers["location"]
-    assert target.startswith(str(PRODUCT["landing_url"]))
-    client.put(f"/posts/{post_id}/auto-dm", json={"enabled": True, "landing_url": "https://shop.test/promo"})
-    again = client.post(f"/messages/{message_id}/auto-dm/preview").json()
-    assert again["tracked_url"] == draft["tracked_url"]  # One link per comment.
-    target = client.get(again["tracked_url"].replace(tracking_base(), "")).headers["location"]
-    assert target.startswith("https://shop.test/promo")
 
 
 async def test_llm_prompt_contains_product_description(settings: Settings) -> None:
@@ -272,10 +239,6 @@ async def test_llm_prompt_contains_product_description(settings: Settings) -> No
     assert fallback.writer == "template" and "https://shop.test/p" in fallback.text
 
 
-def test_demo_has_a_product(client: TestClient) -> None:
-    client.post("/demo/load")
-    assert client.get("/accounts/demo-instagram/product").json()["name"] == "Hoodie Maison Karim"
-
 
 async def test_saas_profile_uses_saas_prompt_and_templates(settings: Settings) -> None:
     s = settings.model_copy(update={"cloudflare_account_id": "cf", "cloudflare_api_token": "t"})
@@ -294,10 +257,3 @@ async def test_saas_profile_uses_saas_prompt_and_templates(settings: Settings) -
 
     purchase = template_draft(item.model_copy(update={"intent": Intent.purchase_intent})).text
     assert "démarrer" in purchase and "commander" not in purchase
-
-
-def test_saas_product(client: TestClient, session: Session) -> None:
-    setup_post(session)
-    saas = {**PRODUCT, "business_type": "saas", "name": "InvoiceBot", "landing_url": "https://invoicebot.test"}
-    body = client.put("/accounts/acc-1/product", json=saas).json()
-    assert (body["business_type"], body["landing_url"]) == ("saas", "https://invoicebot.test/")

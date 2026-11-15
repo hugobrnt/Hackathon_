@@ -19,14 +19,16 @@ def test_init_db_adds_new_columns_to_an_old_table() -> None:
         assert connection.execute(text("SELECT view_count FROM posts")).scalar() is None
 
 
-def test_init_db_adds_not_null_column_with_server_default() -> None:
+def test_init_db_migrates_the_one_product_table() -> None:
     engine = create_engine("sqlite://", poolclass=StaticPool)
     with engine.begin() as connection:
         connection.execute(text(
-            "CREATE TABLE products (account_id VARCHAR PRIMARY KEY, name VARCHAR NOT NULL, "
-            "landing_url VARCHAR NOT NULL, description VARCHAR NOT NULL, updated_at DATETIME NOT NULL)"
+            "CREATE TABLE products (account_id VARCHAR PRIMARY KEY, business_type VARCHAR NOT NULL DEFAULT 'ecommerce', "
+            "name VARCHAR NOT NULL, landing_url VARCHAR NOT NULL, description VARCHAR NOT NULL, updated_at DATETIME NOT NULL)"
         ))
-        connection.execute(text("INSERT INTO products VALUES ('a', 'n', 'https://x', 'desc', '2026-11-15')"))
+        connection.execute(text("INSERT INTO products VALUES ('a', 'saas', 'Bot', 'https://x', 'desc', '2026-11-15')"))
     init_db(engine)
+    assert not inspect(engine).has_table("products_legacy")
     with engine.connect() as connection:
-        assert connection.execute(text("SELECT business_type FROM products")).scalar() == "ecommerce"
+        row = connection.execute(text("SELECT id, account_id, business_type, title, is_active FROM products")).one()
+    assert tuple(row) == (1, "a", "saas", "Bot", 1)

@@ -46,7 +46,10 @@ def test_run_and_read(client: TestClient, session: Session) -> None:
     top = objections["themes"][0]
     assert top["mention_count"] == 2
     assert top["quotes"] == ["Trop cher pour un hoodie", "Hoodie trop cher pour moi"]  # Most confident first.
-    assert "user-o1" not in json.dumps(report)  # No usernames.
+    assert "user-o1" not in json.dumps(top["quotes"])  # No usernames in the quotes.
+    assert top["summary"]  # Always one sentence.
+    assert [c["text"] for c in top["comments"]] == ["Trop cher pour un hoodie", "Hoodie trop cher pour moi"]
+    assert top["comments"][0]["author_name"] == "user-o1" and top["comments"][0]["kind"] == "comment"
     assert [c["category"] for c in report["categories"]] == ["objections", "feature_requests", "needs", "praise"]
 
     latest = client.get("/insights", params={"account_id": "acc-1", "top": 1}).json()
