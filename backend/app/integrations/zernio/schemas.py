@@ -207,3 +207,37 @@ class PrivateReplyResult(ZernioModel):
     status: str | None = None
     message_id: str | None = Field(default=None, validation_alias=AliasChoices("messageId", "message_id"))
     comment_id: str | None = Field(default=None, validation_alias=AliasChoices("commentId", "comment_id"))
+
+
+class AdAccount(ZernioModel):
+    id: str
+    name: str | None = None
+    currency: str | None = None
+    account_status: int | str | None = Field(
+        default=None, validation_alias=AliasChoices("accountStatus", "account_status")
+    )
+    selected: bool | None = None
+
+
+class AdAccountsResponse(ZernioModel):
+    accounts: list[AdAccount] = []
+
+
+class ZernioAd(ZernioModel):
+    id: str = Field(validation_alias=AliasChoices("_id", "id", "adId"))
+    name: str | None = None
+    status: str | None = None
+    configured_status: str | None = Field(
+        default=None, validation_alias=AliasChoices("configuredStatus", "configured_status")
+    )
+    review_status: str | None = Field(default=None, validation_alias=AliasChoices("reviewStatus", "review_status"))
+    campaign_id: str | None = Field(default=None, validation_alias=AliasChoices("campaignId", "campaign_id"))
+    platform_ad_id: str | None = Field(
+        default=None, validation_alias=AliasChoices("platformAdId", "platform_ad_id")
+    )
+
+
+class BoostResponse(ZernioModel):
+    ad: ZernioAd
+    message: str | None = None
+    warnings: list[object] = []
