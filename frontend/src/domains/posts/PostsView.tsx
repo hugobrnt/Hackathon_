@@ -1,3 +1,4 @@
+import { PlatformBadge } from "../../shared/PlatformBadge";
 import { useMemo, useState, type ReactNode } from "react";
 import type {
   PostIntentStats,
@@ -136,6 +137,7 @@ export function PostsView({
         </Button>
       </Heading>
       {scope}
+      <h2 className="scope-heading">Performance overview</h2>
       <div className="metrics-grid">
         <Metric
           label="Purchase intent rate"
@@ -165,6 +167,7 @@ export function PostsView({
           hint="In the selected period"
         />
       </div>
+      <h2 className="scope-heading">By post</h2>
       <div className="filter-row">
         <label>
           <span className="sr-only">Sort posts</span>
@@ -265,7 +268,10 @@ export function PostsView({
                         {String(i + 1).padStart(2, "0")}
                       </span>
                       <span>
-                        {p.post.caption || "Untitled post"}
+                        <span className="post-title-line">
+                          <PlatformBadge platform={p.post.platform} />
+                          <span>{p.post.caption || "Untitled post"}</span>
+                        </span>
                         <small>
                           {origin(p)} · {p.post.media_type ?? "Post"} ·{" "}
                           {formatDate(p.post.created_time)}
@@ -296,7 +302,10 @@ export function PostsView({
             <article className="panel leader-card" key={p.post.id}>
               <div className="leader-rank">
                 <span>{String(i + 1).padStart(2, "0")}</span>
-                <strong>{p.post.caption}</strong>
+                <strong className="post-title-line">
+                  <PlatformBadge platform={p.post.platform} />
+                  <span>{p.post.caption}</span>
+                </strong>
               </div>
               <PostVisual
                 picture={p.post.picture}

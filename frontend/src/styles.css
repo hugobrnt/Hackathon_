@@ -3614,3 +3614,45 @@ tbody td small {
     flex-wrap: wrap;
   }
 }
+
+/* Channel identity stays beside the content it belongs to. */
+.platform-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex-shrink: 0;
+  vertical-align: middle;
+  font-size: 12px;
+  font-weight: 600;
+  color: #333;
+}
+.platform-badge img {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+.post-title-line {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 10px;
+  line-height: 1.45;
+}
+.post-title-line .platform-badge {
+  margin-top: 1px;
+}
+.detail-platform {
+  margin: 18px 0 12px;
+}
+.detail-platform .platform-badge {
+  padding: 9px 12px;
+  border: 1px solid #e7e7e7;
+  border-radius: 8px;
+  font-size: 14px;
+  background: white;
+}
+.scope-heading {
+  font-size: 15px;
+  letter-spacing: -0.2px;
+  margin: 22px 0 12px;
+}

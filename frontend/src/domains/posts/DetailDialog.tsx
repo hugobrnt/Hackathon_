@@ -1,3 +1,4 @@
+import { PlatformBadge } from "../../shared/PlatformBadge";
 import { useEffect, useRef, useState } from "react";
 import { sourceFor, type DataMode } from "../../api/source";
 import type { Intent, Message, PostDetail } from "../../api/types";
@@ -146,6 +147,9 @@ export function DetailDialog({
                     Open on {detail.post.platform} ↗
                   </a>
                 )}
+                <div className="detail-platform">
+                  <PlatformBadge platform={detail.post.platform} label />
+                </div>
                 <small>
                   {formatDate(detail.post.created_time)} ·{" "}
                   {detail.post.media_type ?? "Post"}
