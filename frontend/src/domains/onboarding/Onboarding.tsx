@@ -388,20 +388,22 @@ export function Onboarding({
                     </Button>
                   )}
                   {loading && <p role="status">Loading your channels…</p>}
-                  {accounts.length > 0 && (
-                    <p>
-                      {accounts
-                        .map((a) => a.username ?? a.platform)
-                        .join(" · ")}
-                    </p>
-                  )}
-                  <Button
-                    primary
-                    disabled={busy || loading || !accounts.length}
-                    onClick={() => go(3)}
-                  >
-                    Continue →
-                  </Button>
+                  <div className="onboarding-step-actions">
+                    <Button disabled={busy} onClick={() => go(1)}>
+                      ← Back
+                    </Button>
+                    <span className="onboarding-connected-count" role="status">
+                      {accounts.length}{" "}
+                      {accounts.length === 1 ? "channel" : "channels"} connected
+                    </span>
+                    <Button
+                      primary
+                      disabled={busy || loading || !accounts.length}
+                      onClick={() => go(3)}
+                    >
+                      Continue →
+                    </Button>
+                  </div>
                 </>
               ) : state.step === 3 ? (
                 <>
@@ -417,16 +419,17 @@ export function Onboarding({
                       <div
                         key={a.id}
                         className={
-                          state.imported.includes(a.id)
+                          "import-account-row " +
+                          (state.imported.includes(a.id)
                             ? "done"
                             : busy
                               ? "running"
-                              : ""
+                              : "")
                         }
                       >
                         <PlatformBadge platform={a.platform} />
                         <strong>{a.username ?? a.platform}</strong>
-                        <span role="status">
+                        <span className="import-account-status" role="status">
                           {results[a.id] ??
                             (state.imported.includes(a.id)
                               ? "Ready"
@@ -435,17 +438,22 @@ export function Onboarding({
                       </div>
                     ))}
                   </div>
-                  <Button
-                    primary
-                    disabled={busy || !accounts.length}
-                    onClick={() => (ready ? go(4) : void importContent())}
-                  >
-                    {busy
-                      ? "Importing…"
-                      : ready
-                        ? "Continue →"
-                        : "Import content"}
-                  </Button>
+                  <div className="onboarding-step-actions">
+                    <Button disabled={busy} onClick={() => go(2)}>
+                      ← Back
+                    </Button>
+                    <Button
+                      primary
+                      disabled={busy || !accounts.length}
+                      onClick={() => (ready ? go(4) : void importContent())}
+                    >
+                      {busy
+                        ? "Importing…"
+                        : ready
+                          ? "Continue →"
+                          : "Import content"}
+                    </Button>
+                  </div>
                   {!busy && !ready && Object.keys(results).length > 0 && (
                     <Button onClick={() => go(4)}>
                       Continue with available data
@@ -480,7 +488,7 @@ export function Onboarding({
               )}
             </motion.section>
           </AnimatePresence>
-          {state.step > 1 && (
+          {state.step > 3 && (
             <Button
               className="step-back"
               disabled={busy}
