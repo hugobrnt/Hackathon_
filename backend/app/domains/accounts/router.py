@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, Literal
 import secrets
 from datetime import UTC, timedelta
 from app.domains.auth.models import ConnectState
@@ -6,7 +6,7 @@ from app.domains.auth.router import digest
 from app.domains.accounts.models import utc_now
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
 from fastapi.responses import RedirectResponse
 from sqlmodel import Session
 
@@ -49,7 +49,10 @@ async def start_connect(
             description="Zernio accountId to reconnect, for example after a `reconnect_required` error."
         ),
     ] = None,
+    login_method: Annotated[Literal["instagram_login", "facebook_login"] | None, Query(description="Instagram authorization method.")] = None,
 ) -> ConnectUrlResponse:
+    if login_method and platform != SupportedPlatform.instagram:
+        raise HTTPException(400, "login_method is only supported for Instagram.")
     profile_id = await service.resolve_profile_id(zernio, settings)
     nonce = secrets.token_urlsafe(32)
     session.add(
@@ -64,7 +67,7 @@ async def start_connect(
         f"{settings.public_base_url.rstrip('/')}/accounts/callback?signal_state={nonce}"
     )
     connect = await zernio.get_connect_url(
-        platform.value, profile_id, redirect_url, reconnect_account_id
+        platform.value, profile_id, redirect_url, reconnect_account_id, login_method
     )
     return ConnectUrlResponse(auth_url=connect.auth_url)
 
@@ -177,9 +180,10 @@ async def get_accounts(
 async def sync_accounts(
     session: SessionDep,
     zernio: ZernioDep,
+    settings: SettingsDep,
     platform: Annotated[SupportedPlatform | None, Query()] = None,
 ) -> list[SocialAccountRead]:
     accounts = await service.sync_accounts(
-        session, zernio, platform.value if platform else None
+        session, zernio, platform.value if platform else None, await service.resolve_profile_id(zernio, settings)
     )
     return [SocialAccountRead.model_validate(a) for a in accounts]

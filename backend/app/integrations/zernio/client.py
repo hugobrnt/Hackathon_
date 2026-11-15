@@ -122,7 +122,7 @@ class ZernioClient:
     # Connect and accounts
 
     async def get_connect_url(
-        self, platform: str, profile_id: str, redirect_url: str, reconnect_account_id: str | None = None
+        self, platform: str, profile_id: str, redirect_url: str, reconnect_account_id: str | None = None, login_method: str | None = None
     ) -> ConnectUrl:
         data = await self._get(
             f"/connect/{platform}",
@@ -130,6 +130,9 @@ class ZernioClient:
                 "profileId": profile_id,
                 "redirect_url": redirect_url,
                 "reconnectAccountId": reconnect_account_id,
+                "loginMethod": login_method,
+                "welcome": "true",
+                "brandName": "Signal",
             },
         )
         return ConnectUrl.model_validate(data)

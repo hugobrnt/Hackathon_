@@ -123,7 +123,7 @@ def test_sync_accounts(client: TestClient, zernio_mock: respx.MockRouter) -> Non
     zernio_mock.get("/accounts").respond(
         json={
             "accounts": [
-                {"_id": "acc-2", "platform": "instagram", "displayName": "Léa"}
+                {"_id": "acc-2", "platform": "instagram", "displayName": "Léa", "profileId":"profile-1"}
             ]
         }
     )
@@ -180,3 +180,22 @@ def test_callback_rejects_replay_and_foreign_profile(
         "expired_connection"
         in client.get("/accounts/callback", params=query).headers["location"]
     )
+
+
+def test_instagram_facebook_fallback(client: TestClient, zernio_mock: respx.MockRouter) -> None:
+    route = zernio_mock.get("/connect/instagram").respond(json={"authUrl":"https://zernio.com/connect/welcome"})
+    response = client.post("/accounts/connect/instagram?login_method=facebook_login")
+    assert response.status_code == 200
+    assert route.calls.last.request.url.params["loginMethod"] == "facebook_login"
+    assert route.calls.last.request.url.params["welcome"] == "true"
+    assert client.post("/accounts/connect/youtube?login_method=facebook_login").status_code == 400
+
+
+def test_recovery_only_returns_current_profile_accounts(client: TestClient, zernio_mock: respx.MockRouter) -> None:
+    zernio_mock.get("/accounts").respond(json={"accounts":[
+        {"_id":"mine","platform":"instagram","profileId":"profile-1"},
+        {"_id":"other","platform":"instagram","profileId":"another-profile"},
+    ]})
+    result=client.post("/accounts/sync")
+    assert result.status_code == 200
+    assert [a["id"] for a in result.json()] == ["mine"]
