@@ -172,7 +172,7 @@ Le classifieur attribue à chaque message une intention, un sentiment (positif, 
 
 ### Questions ouvertes
 
-- [ ] Quel réseau pour la démo : Instagram seul, ou Instagram + LinkedIn ?
+- [x] Quel réseau pour la démo : Instagram seul pour l'instant.
 - [ ] Quel compte réel utiliser ? A-t-il assez de commentaires récents ?
 - [ ] Quelle formule pour l'Intent Score ? Proposition : (achat × 3 + question × 2 + objection × 1) ÷ total des commentaires.
 - [ ] Quel modèle Workers AI pour la classification ? Faut-il un modèle plus gros pour les cas ambigus ?
