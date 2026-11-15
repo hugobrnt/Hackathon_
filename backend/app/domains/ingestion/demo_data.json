@@ -1,0 +1,277 @@
+{
+  "account": {
+    "id": "demo-instagram",
+    "platform": "instagram",
+    "username": "maison.karim"
+  },
+  "posts": [
+    {
+      "id": "demo-post-1",
+      "message": "Tuto : comment choisir sa taille de hoodie en 30 secondes 📏 Notre guide complet en carrousel.",
+      "createdTime": "2026-11-10T09:00:00Z",
+      "permalink": "https://instagram.com/p/demo1",
+      "mediaType": "CAROUSEL_ALBUM",
+      "commentCount": 8,
+      "likeCount": 412,
+      "comments": [
+        {
+          "id": "demo-c-101",
+          "message": "Dispo en M le noir ?",
+          "createdTime": "2026-11-10T09:12:00Z",
+          "from": {
+            "id": "u-01",
+            "username": "julie.mrt"
+          }
+        },
+        {
+          "id": "demo-c-102",
+          "message": "Je prends ! Où je commande ?",
+          "createdTime": "2026-11-10T09:20:00Z",
+          "from": {
+            "id": "u-02",
+            "username": "theo_dsg"
+          },
+          "replies": [
+            {
+              "id": "demo-c-102-r1",
+              "message": "Je t'envoie le lien en DM 🙌",
+              "createdTime": "2026-11-10T09:25:00Z",
+              "from": {
+                "id": "owner",
+                "username": "maison.karim",
+                "isOwner": true
+              }
+            }
+          ]
+        },
+        {
+          "id": "demo-c-103",
+          "message": "C'est combien la livraison en Belgique ?",
+          "createdTime": "2026-11-10T09:41:00Z",
+          "from": {
+            "id": "u-03",
+            "username": "lea.bxl"
+          }
+        },
+        {
+          "id": "demo-c-104",
+          "message": "Un peu cher pour un hoodie franchement",
+          "createdTime": "2026-11-10T10:02:00Z",
+          "from": {
+            "id": "u-04",
+            "username": "max.prx"
+          }
+        },
+        {
+          "id": "demo-c-105",
+          "message": "Je l'ai depuis 6 mois, toujours nickel après lavage 👌",
+          "createdTime": "2026-11-10T10:15:00Z",
+          "from": {
+            "id": "u-05",
+            "username": "sarah.k"
+          }
+        },
+        {
+          "id": "demo-c-106",
+          "message": "Vous faites des tailles XXL ?",
+          "createdTime": "2026-11-10T11:30:00Z",
+          "from": {
+            "id": "u-06",
+            "username": "nico_rb"
+          }
+        },
+        {
+          "id": "demo-c-107",
+          "message": "🔥🔥",
+          "createdTime": "2026-11-10T12:00:00Z",
+          "from": {
+            "id": "u-07",
+            "username": "flo.92"
+          }
+        }
+      ],
+      "views": 5400,
+      "shareCount": 96,
+      "reposts": 14
+    },
+    {
+      "id": "demo-post-2",
+      "message": "Dans les coulisses de notre atelier à Roubaix 🧵",
+      "createdTime": "2026-11-08T18:00:00Z",
+      "permalink": "https://instagram.com/p/demo2",
+      "mediaType": "VIDEO",
+      "commentCount": 5,
+      "likeCount": 2310,
+      "comments": [
+        {
+          "id": "demo-c-201",
+          "message": "Trop beau ce reel 😍",
+          "createdTime": "2026-11-08T18:10:00Z",
+          "from": {
+            "id": "u-08",
+            "username": "camille.art"
+          }
+        },
+        {
+          "id": "demo-c-202",
+          "message": "Magnifique travail",
+          "createdTime": "2026-11-08T18:22:00Z",
+          "from": {
+            "id": "u-09",
+            "username": "paul.lm"
+          }
+        },
+        {
+          "id": "demo-c-203",
+          "message": "Ma commande n'est toujours pas arrivée, ça fait 2 semaines",
+          "createdTime": "2026-11-08T19:05:00Z",
+          "from": {
+            "id": "u-10",
+            "username": "ines_b"
+          }
+        },
+        {
+          "id": "demo-c-204",
+          "message": "Gagnez 1000€ par jour 👉 bit.ly/xxxx",
+          "createdTime": "2026-11-08T20:00:00Z",
+          "from": {
+            "id": "u-11",
+            "username": "crypto.win.now"
+          }
+        },
+        {
+          "id": "demo-c-205",
+          "message": "Vous faites des visites de l'atelier ?",
+          "createdTime": "2026-11-08T21:14:00Z",
+          "from": {
+            "id": "u-12",
+            "username": "hugo.tx"
+          }
+        }
+      ],
+      "views": 48200,
+      "shareCount": 310,
+      "reposts": 57
+    },
+    {
+      "id": "demo-post-3",
+      "message": "Nouvelle couleur : vert sauge 🌿 Précommandes ouvertes ce soir.",
+      "createdTime": "2026-11-05T17:00:00Z",
+      "permalink": "https://instagram.com/p/demo3",
+      "mediaType": "IMAGE",
+      "commentCount": 6,
+      "likeCount": 860,
+      "comments": [
+        {
+          "id": "demo-c-301",
+          "message": "Il me le faut en S !!",
+          "createdTime": "2026-11-05T17:03:00Z",
+          "from": {
+            "id": "u-13",
+            "username": "manon.lc"
+          }
+        },
+        {
+          "id": "demo-c-302",
+          "message": "La précommande est livrée quand ?",
+          "createdTime": "2026-11-05T17:15:00Z",
+          "from": {
+            "id": "u-14",
+            "username": "yanis.d"
+          }
+        },
+        {
+          "id": "demo-c-303",
+          "message": "Paiement en 3 fois possible ?",
+          "createdTime": "2026-11-05T17:40:00Z",
+          "from": {
+            "id": "u-15",
+            "username": "clara.vn"
+          }
+        },
+        {
+          "id": "demo-c-304",
+          "message": "Je ne fais pas confiance aux précommandes, déjà eu des soucis ailleurs",
+          "createdTime": "2026-11-05T18:02:00Z",
+          "from": {
+            "id": "u-16",
+            "username": "romain.gt"
+          }
+        },
+        {
+          "id": "demo-c-305",
+          "message": "Ce serait top d'avoir la même en version zippée",
+          "createdTime": "2026-11-05T18:30:00Z",
+          "from": {
+            "id": "u-17",
+            "username": "alice.pm"
+          }
+        },
+        {
+          "id": "demo-c-306",
+          "message": "Lien pour commander svp ?",
+          "createdTime": "2026-11-05T19:00:00Z",
+          "from": {
+            "id": "u-18",
+            "username": "lucas.jr"
+          }
+        }
+      ],
+      "views": 9100,
+      "shareCount": 41,
+      "reposts": 9
+    }
+  ],
+  "conversations": [
+    {
+      "id": "demo-conv-1",
+      "participantName": "julie.mrt",
+      "messages": [
+        {
+          "id": "demo-dm-101",
+          "message": "Bonjour, le hoodie noir taille M est encore dispo ?",
+          "senderId": "u-01",
+          "senderName": "julie.mrt",
+          "direction": "incoming",
+          "createdAt": "2026-11-10T09:15:00Z"
+        },
+        {
+          "id": "demo-dm-102",
+          "message": "Oui ! Voici le lien direct : https://example.com/hoodie-noir",
+          "senderId": "owner",
+          "senderName": "maison.karim",
+          "direction": "outgoing",
+          "createdAt": "2026-11-10T09:16:00Z"
+        }
+      ]
+    },
+    {
+      "id": "demo-conv-2",
+      "participantName": "ines_b",
+      "messages": [
+        {
+          "id": "demo-dm-201",
+          "message": "Commande #4521 pas reçue, vous pouvez vérifier ?",
+          "senderId": "u-10",
+          "senderName": "ines_b",
+          "direction": "incoming",
+          "createdAt": "2026-11-08T19:10:00Z"
+        }
+      ]
+    },
+    {
+      "id": "demo-conv-3",
+      "participantName": "clara.vn",
+      "messages": [
+        {
+          "id": "demo-dm-301",
+          "message": "Vous livrez en Suisse ? Et les frais de douane ?",
+          "senderId": "u-15",
+          "senderName": "clara.vn",
+          "direction": "incoming",
+          "createdAt": "2026-11-06T08:30:00Z"
+        }
+      ]
+    }
+  ]
+}

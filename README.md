@@ -25,4 +25,4 @@ Documentation for the Zernio Hackathon project is provided in the following file
 To start the full stack, use two terminals:
 
 1. In backend/, run `uv run uvicorn app.main:app --reload`.
-2. In the repository root, run `pnpm dev:frontend`, then open http://localhost:5173`.
+2. In the repository root, run `pnpm install` (first time only), then `pnpm dev:frontend`, then open `http://localhost:5173`.

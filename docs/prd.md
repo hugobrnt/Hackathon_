@@ -99,8 +99,8 @@ Le classifieur attribue à chaque message une intention, un sentiment (positif, 
 | F2 | Ingestion | Recevoir les nouveaux commentaires et DMs en temps réel via les webhooks Zernio | P0 |
 | F3 | Analyse | Classer chaque message par intention, sentiment et confiance avec un LLM | P0 |
 | F4 | Analyse | Calculer le Purchase Intent Rate et un Intent Score pondéré par post | P0 |
-| F5 | Dashboard | Afficher les posts triés du meilleur au moins bon Intent Score | P0 |
-| F6 | Dashboard | Afficher le détail d'un post : répartition des intentions et commentaires clés | P0 |
+| F5 | Dashboard | Afficher les posts triés du meilleur au moins bon Intent Score. Afficher à côté des KPIs maison les métriques de la plateforme : vues, commentaires, likes, partages et reposts | P0 |
+| F6 | Dashboard | Afficher le détail d'un post : répartition des intentions, commentaires clés et métriques de la plateforme (vues, commentaires, likes, partages, reposts) | P0 |
 | F7 | Auto-DM | Envoyer un DM personnalisé aux auteurs de commentaires « achat », « question » ou « objection » | P0 |
 | F8 | Auto-DM | Ajouter un lien tracké (UTM + redirection Worker) vers la landing page | P0 |
 | F9 | Ads | Bouton « Booster » : créer une campagne via `POST /v1/ads/boost` | P0 |

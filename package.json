@@ -1,0 +1,8 @@
+{
+  "name": "social-intent-converter",
+  "private": true,
+  "scripts": {
+    "dev:frontend": "pnpm --filter frontend dev",
+    "build:frontend": "pnpm --filter frontend build"
+  }
+}
