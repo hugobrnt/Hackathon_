@@ -3463,3 +3463,154 @@ tbody td small {
 .analytics-grid {
   grid-template-columns: minmax(0, 1fr);
 }
+
+/* Anchored, interactive workspace walkthrough. Targets remain clickable. */
+.guided-tour-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 5000;
+  pointer-events: none;
+}
+.guided-tour-spotlight {
+  position: fixed;
+  border: 2px solid #2c65ff;
+  border-radius: 12px;
+  box-shadow: 0 0 0 9999px rgb(15 20 35 / 32%);
+  pointer-events: none;
+}
+.guided-tour-card {
+  position: fixed;
+  pointer-events: auto;
+  padding: 20px;
+  border-radius: 16px;
+  background: white;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 16px 70px #121b3833;
+  max-height: calc(100dvh - 24px);
+  overflow-y: auto;
+}
+.guided-tour-progress {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
+}
+.guided-tour-progress span {
+  flex: 1;
+  height: 3px;
+  border-radius: 2px;
+  background: #eee;
+  transition: background 0.2s;
+}
+.guided-tour-progress .done {
+  background: #2c65ff;
+}
+.guided-tour-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  color: #666;
+  margin-bottom: 10px;
+}
+.guided-tour-top button {
+  font-size: 24px;
+  line-height: 1;
+  padding: 0 3px;
+}
+.guided-tour-card h2 {
+  font-size: 20px;
+  line-height: 1.2;
+  letter-spacing: -0.5px;
+  margin: 0 0 10px;
+}
+.guided-tour-card h2:focus {
+  outline: none;
+}
+.guided-tour-card p {
+  color: #666;
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 0;
+}
+.guided-tour-feedback {
+  color: #245ce4;
+  font-size: 11px;
+  margin: 12px 0;
+  min-height: 16px;
+}
+.guided-tour-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+.guided-tour-actions .btn {
+  font-size: 11px;
+  padding: 10px;
+}
+.guided-tour-bottom {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 14px;
+  color: #777;
+  font-size: 11px;
+}
+.guided-tour-bottom button {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .guided-tour-progress span {
+    transition: none;
+  }
+}
+
+.dm-origin {
+  display: grid;
+  gap: 4px;
+  font-size: 11px;
+  margin: 8px 0;
+  color: #747474;
+}
+.dm-origin strong {
+  color: #444;
+  font-size: 11px;
+  font-weight: 550;
+}
+.dm-origin > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dm-source-context {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid #eee;
+  margin-bottom: 16px;
+}
+.dm-source-context .text-link {
+  text-align: left;
+  line-height: 1.5;
+}
+
+@media (max-width: 760px) {
+  .dashboard-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .next-moves,
+  .audience-summary {
+    min-width: 0;
+  }
+}
+@media (max-width: 520px) {
+  .next-moves {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .next-moves .section-heading {
+    flex-wrap: wrap;
+  }
+}

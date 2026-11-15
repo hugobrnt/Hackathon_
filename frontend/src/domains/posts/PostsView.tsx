@@ -1,5 +1,9 @@
-import { useMemo, useState } from "react";
-import type { PostIntentStats, PostSortKey } from "../../api/types";
+import { useMemo, useState, type ReactNode } from "react";
+import type {
+  PostIntentStats,
+  PostSortKey,
+  SocialAccount,
+} from "../../api/types";
 import { aggregate, PIR_DEFINITION, sortPosts } from "../analytics/model";
 import { formatCount, formatDate, formatPercent } from "../../shared/format";
 import { Button, Empty, Heading, Metric, PostVisual } from "../../shared/ui";
@@ -15,7 +19,13 @@ export function PostsView({
   posts,
   query,
   onOpen,
+  scope,
+  accounts = [],
+  loading = false,
 }: {
+  scope?: ReactNode;
+  accounts?: SocialAccount[];
+  loading?: boolean;
   posts: PostIntentStats[];
   query: string;
   onOpen: (id: number) => void;
@@ -39,6 +49,13 @@ export function PostsView({
     [posts, sort, minimum, format, query],
   );
   const total = aggregate(posts);
+  const origin = (p: PostIntentStats) => {
+    const account = accounts.find((a) => a.id === p.post.account_id);
+    return (
+      p.post.platform +
+      (account?.username ? " · @" + account.username.replace(/^@/, "") : "")
+    );
+  };
   function postActions(post: PostIntentStats) {
     return (
       <div className="post-actions">
@@ -75,9 +92,19 @@ export function PostsView({
         .replaceAll('"', '""') +
       '"';
     const rows = [
-      ["Post", "Purchase intent rate", "Purchase intents", "Audience comments"],
+      [
+        "Post",
+        "Channel",
+        "Account",
+        "Purchase intent rate",
+        "Purchase intents",
+        "Audience comments",
+      ],
       ...filtered.map((p) => [
         p.post.caption,
+        p.post.platform,
+        accounts.find((a) => a.id === p.post.account_id)?.username ??
+          p.post.account_id,
         p.purchase_intent_rate,
         p.intent_counts.purchase_intent,
         p.total_comments,
@@ -108,6 +135,7 @@ export function PostsView({
           Export CSV ↗
         </Button>
       </Heading>
+      {scope}
       <div className="metrics-grid">
         <Metric
           label="Purchase intent rate"
@@ -192,7 +220,11 @@ export function PostsView({
           </button>
         </div>
       </div>
-      {!filtered.length ? (
+      {loading ? (
+        <p role="status" className="loading">
+          Loading posts across channels…
+        </p>
+      ) : !filtered.length ? (
         <Empty
           title="No posts match these filters"
           action={
@@ -220,7 +252,10 @@ export function PostsView({
             </thead>
             <tbody>
               {filtered.map((p, i) => (
-                <tr key={p.post.id}>
+                <tr
+                  key={p.post.id}
+                  data-tour={i === 0 ? "post-ranking" : undefined}
+                >
                   <td>
                     <button
                       className="post-title"
@@ -232,7 +267,7 @@ export function PostsView({
                       <span>
                         {p.post.caption || "Untitled post"}
                         <small>
-                          {p.post.media_type ?? "Post"} ·{" "}
+                          {origin(p)} · {p.post.media_type ?? "Post"} ·{" "}
                           {formatDate(p.post.created_time)}
                         </small>
                       </span>
@@ -256,7 +291,7 @@ export function PostsView({
           </table>
         </div>
       ) : (
-        <div className="leaderboard-grid">
+        <div className="leaderboard-grid" data-tour="post-ranking">
           {filtered.map((p, i) => (
             <article className="panel leader-card" key={p.post.id}>
               <div className="leader-rank">
@@ -277,7 +312,7 @@ export function PostsView({
                 comments
               </small>
               <div className="leader-meta">
-                {p.post.media_type ?? "Post"} ·{" "}
+                {origin(p)} · {p.post.media_type ?? "Post"} ·{" "}
                 {formatDate(p.post.created_time)}
               </div>
               {postActions(p)}

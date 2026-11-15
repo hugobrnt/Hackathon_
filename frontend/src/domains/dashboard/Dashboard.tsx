@@ -86,7 +86,10 @@ export function Dashboard({
         <div className="panel signal-panel">
           <span className="eyebrow">QUANTITATIVE SIGNALS</span>
           <h3>Which content creates purchase intent?</h3>
-          <div className="metrics-grid metrics-grid--three">
+          <div
+            className="metrics-grid metrics-grid--three"
+            data-tour="dashboard-signals"
+          >
             <Metric
               label="Purchase intent rate"
               value={formatPercent(data.rate)}

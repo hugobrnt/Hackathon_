@@ -15,10 +15,11 @@ import {
   DemoOnboarding,
   restartDemoOnboarding,
 } from "./domains/onboarding/DemoOnboarding";
+import { TOUR_KEY } from "./domains/onboarding/tour-model";
 import { WorkspaceTour, tourSteps } from "./domains/onboarding/WorkspaceTour";
 import { Landing } from "./domains/onboarding/Landing";
 import { Dashboard } from "./domains/dashboard/Dashboard";
-import { PostsView } from "./domains/posts/PostsView";
+import { BrandPosts } from "./domains/posts/BrandPosts";
 import { DetailDialog } from "./domains/posts/DetailDialog";
 import { BrandInsights } from "./domains/insights/BrandInsights";
 import { Analytics } from "./domains/analytics/Analytics";
@@ -84,8 +85,8 @@ export default function App() {
     ),
     [profileRevision, setProfileRevision] = useState(0),
     [tourStep, setTourStep] = useState<number>(() => {
-      const n = readStored<unknown>("signal:demo:tour", -1);
-      return typeof n === "number" && n >= 0 && n < 4 ? n : -1;
+      const n = readStored<unknown>(TOUR_KEY, -1);
+      return typeof n === "number" && n >= 0 && n < tourSteps.length ? n : -1;
     });
   const workspaceEnabled = !["landing", "brand", "demo"].includes(route.view);
   const preferred = route.params.get("account") ?? "";
@@ -126,29 +127,46 @@ export default function App() {
   function beginDemo() {
     restartDemoOnboarding();
     setTourStep(-1);
-    saveStored("signal:demo:tour", -1);
+    saveStored(TOUR_KEY, -1);
     changeMode("demo", "demo");
   }
   function finishDemo() {
     setTourStep(0);
-    saveStored("signal:demo:tour", 0);
+    saveStored(TOUR_KEY, 0);
     setProfileRevision((r) => r + 1);
     setRevision((r) => r + 1);
     navigate("dashboard", {}, false);
   }
   function dismissTour() {
     setTourStep(-1);
-    saveStored("signal:demo:tour", -1);
+    saveStored(TOUR_KEY, -1);
   }
+  function goToTourStep(step: number) {
+    setTourStep(step);
+    saveStored(TOUR_KEY, step);
+    setQuery("");
+    const s = tourSteps[step];
+    navigate(s.view, s.tab ? { tab: s.tab } : {});
+  }
+  function replayTour() {
+    goToTourStep(0);
+  }
+  useEffect(() => {
+    if (
+      mode === "demo" &&
+      route.view === "dashboard" &&
+      readStored(TOUR_KEY, null) === null
+    ) {
+      setTourStep(0);
+      saveStored(TOUR_KEY, 0);
+    }
+  }, [mode, route.view]);
   function nextTour() {
     if (tourStep >= tourSteps.length - 1) {
       dismissTour();
       return;
     }
-    const next = tourStep + 1;
-    setTourStep(next);
-    saveStored("signal:demo:tour", next);
-    navigate(tourSteps[next].view);
+    goToTourStep(tourStep + 1);
   }
   useEffect(() => {
     const update = () => {
@@ -184,7 +202,7 @@ export default function App() {
       saveStored("signal:mode", "demo");
       restartDemoOnboarding();
       setTourStep(-1);
-      saveStored("signal:demo:tour", -1);
+      saveStored(TOUR_KEY, -1);
       location.hash = "/demo";
       history.replaceState(null, "", location.pathname + location.hash);
     }
@@ -429,10 +447,16 @@ export default function App() {
             Data & definitions
           </button>
           {mode === "demo" && (
-            <button onClick={beginDemo}>
-              <Icon name="plus" />
-              Restart guided demo
-            </button>
+            <>
+              <button onClick={replayTour}>
+                <Icon name="help" />
+                Replay workspace tour
+              </button>
+              <button onClick={beginDemo}>
+                <Icon name="plus" />
+                Restart guided demo
+              </button>
+            </>
           )}
           <label className="mode-select">
             <span>Workspace</span>
@@ -507,7 +531,8 @@ export default function App() {
               view={route.view}
               onNext={nextTour}
               onDismiss={dismissTour}
-              onResume={() => navigate(tourSteps[tourStep].view)}
+              onBack={() => goToTourStep(Math.max(0, tourStep - 1))}
+              onResume={() => goToTourStep(tourStep)}
             />
           )}
           <div className="brand-bar">
@@ -518,7 +543,7 @@ export default function App() {
               <div>
                 <div className="brand-title">
                   <h2>{displayName}</h2>
-                  {route.view === "insights" ? (
+                  {["insights", "posts"].includes(route.view) ? (
                     <span className="pill">
                       All channels · {workspace.accounts.length}
                     </span>
@@ -693,7 +718,7 @@ export default function App() {
               Import an account’s posts and comments to unlock your dashboard.
             </Empty>
           ) : !workspace.posts.length &&
-            !["conversations", "insights"].includes(route.view) ? (
+            !["conversations", "insights", "posts"].includes(route.view) ? (
             <Empty
               title="No posts imported yet"
               action={
@@ -716,7 +741,26 @@ export default function App() {
               onInsight={(i) => navigate("insights", { intent: i })}
             />
           ) : route.view === "posts" ? (
-            <PostsView posts={filteredPosts} query={query} onOpen={openPost} />
+            <BrandPosts
+              mode={mode}
+              accounts={workspace.accounts}
+              revision={revision}
+              period={period}
+              query={query}
+              channel={route.params.get("channel") ?? "all"}
+              onChannelChange={(channel) => navigate("posts", { channel })}
+              onOpen={(id, accountId) =>
+                navigate(
+                  "posts",
+                  {
+                    post: String(id),
+                    account: accountId,
+                    channel: route.params.get("channel") ?? "all",
+                  },
+                  false,
+                )
+              }
+            />
           ) : route.view === "insights" ? (
             <BrandInsights
               key={intent}

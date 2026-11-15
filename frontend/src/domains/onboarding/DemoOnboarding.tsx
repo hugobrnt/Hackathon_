@@ -1,3 +1,4 @@
+import { TOUR_KEY } from "./tour-model";
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Button, Icon } from "../../shared/ui";
@@ -123,7 +124,7 @@ export function DemoOnboarding({
     saveStored("signal:profile:demo:workspace", state.brand);
     for (const a of demoAccounts())
       saveStored("signal:profile:demo:" + a.id, state.brand);
-    saveStored("signal:demo:tour", 0);
+    saveStored(TOUR_KEY, 0);
     saveStored("signal:demo:ready", true);
     onComplete();
   }
@@ -510,7 +511,7 @@ export function DemoOnboarding({
                         ),
                         "posts analyzed",
                       ],
-                      ["4 steps", "to explore your workspace"],
+                      ["7 steps", "to explore your workspace"],
                     ].map(([value, label]) => (
                       <div key={label}>
                         <strong>{value}</strong>

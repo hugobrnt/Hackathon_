@@ -21,7 +21,7 @@ Connect one or several sample channels. Each channel has its own account, post a
 
 In Conversations, review a pending draft, **Simulate send**, then **Simulate a click**. Tracking updates from those local events. Approval, rejection, retryable failures, per-post rules, preview generation and idempotent comment processing use a separate offline adapter. Only eligible intent categories generate drafts; old comments and duplicate contacts are skipped. No real visit or DM is created.
 
-Motion handles step transitions, progressive channel cards, import progress and the workspace guide. Reduced-motion preferences are respected. See [Motion installation](https://motion.dev/docs/react-installation) and [accessibility](https://motion.dev/docs/react-accessibility).
+Motion handles step transitions, progressive channel cards, import progress and a seven-step anchored workspace tour. The tour highlights each target, follows scrolling/resizing, waits for feature filtering / simulated sending / simulated clicking, and opens Tracking for the result. Back, skip, Escape and **Replay workspace tour** are available; it yields to post-detail dialogs. Reduced-motion preferences are respected. See [Motion installation](https://motion.dev/docs/react-installation) and [accessibility](https://motion.dev/docs/react-accessibility).
 
 ## Connected accounts and F7–F8
 
@@ -51,9 +51,9 @@ Tracking links are displayed/copied, never automatically opened or prefetched. L
 
 Brand context is shared locally instead of keyed per channel. Product configuration is edited once in Conversations → Automation and saved to every connected account, adapting to the backend's per-account product model. Partial failures are reported; conflicting/missing product copies are surfaced and can be reconciled by saving again. Newly connected channels are included on the next save.
 
-Insights defaults to all connected channels, with a per-channel filter and an expandable breakdown. Metrics aggregate comment counts, not average percentages. Failed channels are identified and excluded explicitly. Detail retrieval validates each requested account/post pair. Source comments display their channel.
+Posts and Insights default to all connected channels, with a per-channel filter and an expandable breakdown. Metrics aggregate comment counts, not average percentages. Failed channels are identified and excluded explicitly. Detail retrieval validates each requested account/post pair. Source comments display their channel.
 
-Other account-scoped views, including DM activity and tracking, use the account selected in the sidebar.
+DM activity and tracking use the account selected in the sidebar. Every DM lists its channel, account and source-post title, repeated in the detail panel. Posts carry channel/account labels in table, leaderboard and CSV; the channel filter persists through post-detail navigation.
 
 ## Metrics and limits
 

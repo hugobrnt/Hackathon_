@@ -1,3 +1,4 @@
+import { reportTourAction } from "../onboarding/tour-model";
 import { useEffect, useRef, useState } from "react";
 import type { DataMode } from "../../api/source";
 import { sourceFor } from "../../api/source";
@@ -54,6 +55,13 @@ export function Conversations({
     [search, setSearch] = useState(""),
     [selected, setSelected] = useState(0),
     [confirmation, setConfirmation] = useState<ActionConfirmation | null>(null);
+  useEffect(() => {
+    setTab(
+      ["inbox", "automation", "tracking"].includes(initialTab)
+        ? initialTab
+        : "inbox",
+    );
+  }, [initialTab]);
   const alive = useRef(true),
     busyRef = useRef(false),
     requestSequence = useRef(0);
@@ -149,6 +157,14 @@ export function Conversations({
     rows.find((a) => a.status === "pending_approval") ??
     rows[0];
   const stats = data?.stats;
+  const channelLabel = (id: string) => {
+    const a = accounts.find((a) => a.id === id);
+    return a
+      ? a.platform + (a.username ? " · @" + a.username.replace(/^@/, "") : "")
+      : id;
+  };
+  const postLabel = (id: number) =>
+    posts.find((p) => p.post.id === id)?.post.caption || "Post #" + id;
   const hasLocalTracking = data?.links.some((l) => {
     try {
       return ["localhost", "127.0.0.1", "0.0.0.0", "::1"].includes(
@@ -187,7 +203,10 @@ export function Conversations({
           </button>
         </div>
       )}
-      <div className="metrics-grid">
+      <div
+        className="metrics-grid"
+        data-tour={tab === "tracking" ? "dm-tracking" : undefined}
+      >
         <Metric
           label="DMs sent"
           value={stats ? formatCount(stats.dms_sent) : "—"}
@@ -463,6 +482,10 @@ export function Conversations({
                           {statusLabels[a.status]}
                         </span>
                       </div>
+                      <span className="dm-origin">
+                        <strong>{channelLabel(a.account_id)}</strong>
+                        <span>{postLabel(a.post_id)}</span>
+                      </span>
                       <p>{a.text || a.reason || "No message text"}</p>
                       <small>
                         {intentLabels[a.intent]} · {a.link_clicks} clicks
@@ -478,6 +501,8 @@ export function Conversations({
                   )}
                   mode={mode}
                   account={accountId}
+                  channelLabel={channelLabel(active.account_id)}
+                  postLabel={postLabel(active.post_id)}
                   busy={busy}
                   onOpen={onOpen}
                   approve={(text) =>
@@ -505,7 +530,10 @@ export function Conversations({
                           : "Approve and send",
                       action: async () => {
                         await perform(async () => {
+                          setSelected(active.id);
                           const a = await source.approve(active.id, text);
+                          if (mode === "demo" && a.status === "sent")
+                            reportTourAction("dm-sent");
                           return a.status === "sent"
                             ? mode === "demo"
                               ? "Demo DM sent locally."
@@ -527,6 +555,7 @@ export function Conversations({
                   click={() =>
                     void perform(async () => {
                       simulateClick(active.id);
+                      reportTourAction("link-clicked");
                       return "Demo click recorded. Tracking metrics updated.";
                     })
                   }
@@ -557,6 +586,8 @@ function AttemptPanel({
   link,
   mode,
   account,
+  channelLabel,
+  postLabel,
   busy,
   onOpen,
   approve,
@@ -567,6 +598,8 @@ function AttemptPanel({
   link: TrackedLink | undefined;
   mode: DataMode;
   account: string;
+  channelLabel: string;
+  postLabel: string;
   busy: boolean;
   onOpen: (id: number) => void;
   approve: (text: string) => void;
@@ -597,6 +630,12 @@ function AttemptPanel({
         </div>
         <Button onClick={() => onOpen(a.post_id)}>Source post ↗</Button>
       </header>
+      <div className="dm-source-context">
+        <span className="pill">{channelLabel}</span>
+        <button className="text-link" onClick={() => onOpen(a.post_id)}>
+          {postLabel} ↗
+        </button>
+      </div>
       <SourceComment
         mode={mode}
         account={account}
@@ -649,6 +688,7 @@ function AttemptPanel({
         {actionable && (
           <Button
             primary
+            data-tour="dm-send"
             disabled={busy || !text.trim() || text.length > 1000}
             onClick={() => approve(text.trim())}
           >
@@ -686,7 +726,11 @@ function AttemptPanel({
             {mode === "live" ? (
               <Button onClick={() => void copy()}>Copy tracked link</Button>
             ) : (
-              <Button disabled={busy || a.status !== "sent"} onClick={click}>
+              <Button
+                data-tour="dm-click"
+                disabled={busy || a.status !== "sent"}
+                onClick={click}
+              >
                 Simulate a click
               </Button>
             )}

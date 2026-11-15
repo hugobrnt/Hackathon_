@@ -1,17 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import type { DataMode } from "../../api/source";
-import { sourceFor } from "../../api/source";
-import type { SocialAccount, PostIntentStats, Intent } from "../../api/types";
+import { useBrandPosts } from "../accounts/useBrandPosts";
+import type { SocialAccount, Intent } from "../../api/types";
 import { useEvidence } from "../accounts/useWorkspace";
 import { aggregate } from "../analytics/model";
 import { formatPercent } from "../../shared/format";
 import { Insights } from "./Insights";
 import { Button } from "../../shared/ui";
-interface ChannelResult {
-  account: SocialAccount;
-  posts: PostIntentStats[];
-  error: string | null;
-}
 export function BrandInsights({
   mode,
   accounts,
@@ -27,46 +22,12 @@ export function BrandInsights({
   query: string;
   onOpen: (id: number, account: string) => void;
 }) {
-  const [results, setResults] = useState<ChannelResult[]>([]),
-    [loading, setLoading] = useState(true),
-    [channel, setChannel] = useState("all"),
-    [retry, setRetry] = useState(0);
-  const accountKey = accounts.map((a) => a.id).join("|");
-  useEffect(() => {
-    const c = new AbortController();
-    setLoading(true);
-    setResults([]);
-    void (async () => {
-      const rows: ChannelResult[] = [];
-      for (let i = 0; i < accounts.length; i += 4) {
-        const batch = await Promise.all(
-          accounts.slice(i, i + 4).map(async (account) => {
-            try {
-              return {
-                account,
-                posts: await sourceFor(mode).posts(account.id, c.signal),
-                error: null,
-              };
-            } catch (e) {
-              return {
-                account,
-                posts: [],
-                error: e instanceof Error ? e.message : "Unavailable",
-              };
-            }
-          }),
-        );
-        if (c.signal.aborted) return;
-        rows.push(...batch);
-      }
-      if (!c.signal.aborted) {
-        setResults(rows);
-        setLoading(false);
-      }
-    })();
-    return () => c.abort();
-  }, [mode, accountKey, revision, retry]);
-  const allPosts = useMemo(() => results.flatMap((r) => r.posts), [results]);
+  const [channel, setChannel] = useState("all");
+  const { results, loading, allPosts, retry } = useBrandPosts(
+    mode,
+    accounts,
+    revision,
+  );
   const selected =
     channel === "all"
       ? results
@@ -82,7 +43,7 @@ export function BrandInsights({
   const failed = selected.filter((r) => r.error);
   const scope = (
     <>
-      <div className="channel-scope">
+      <div className="channel-scope" data-tour="insights-channels">
         <label className="filter">
           <select
             aria-label="Insights channel"
@@ -111,7 +72,7 @@ export function BrandInsights({
               .join(", ")}
             . Totals include loaded channels only.
           </span>
-          <Button onClick={() => setRetry((n) => n + 1)}>Retry</Button>
+          <Button onClick={retry}>Retry</Button>
         </div>
       )}
       {channel === "all" && accounts.length > 1 && (

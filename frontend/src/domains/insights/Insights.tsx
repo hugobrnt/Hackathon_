@@ -1,3 +1,4 @@
+import { reportTourAction } from "../onboarding/tour-model";
 import { useState, type ReactNode } from "react";
 import type { Intent, PostDetail, PostIntentStats } from "../../api/types";
 import {
@@ -83,7 +84,9 @@ export function Insights({
           <button
             className={"chip " + (filter === i ? "selected" : "")}
             key={i}
+            data-tour={i === "feature_request" ? "feature-filter" : undefined}
             onClick={() => {
+              if (i === "feature_request") reportTourAction("feature-request");
               setFilter(i);
               setLimit(30);
             }}
