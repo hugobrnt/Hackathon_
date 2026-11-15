@@ -827,7 +827,15 @@ export default function App() {
             <Dashboard
               posts={filteredPosts}
               onOpen={openPost}
-              onInsight={(i) => navigate("insights", { intent: i })}
+              onInsight={(i) =>
+                navigate("insights", {
+                  intent: i,
+                  channel: account?.id ?? "all",
+                })
+              }
+              onPosts={() =>
+                navigate("posts", account ? { channel: account.id } : {})
+              }
             />
           ) : route.view === "posts" ? (
             <BrandPosts
@@ -853,6 +861,10 @@ export default function App() {
           ) : route.view === "insights" ? (
             <BrandInsights
               key={intent}
+              channel={route.params.get("channel") ?? "all"}
+              onChannelChange={(channel) =>
+                navigate("insights", { channel, intent })
+              }
               mode={mode}
               accounts={workspace.accounts}
               revision={revision}
@@ -861,7 +873,12 @@ export default function App() {
               onOpen={(id, accountId) =>
                 navigate(
                   "insights",
-                  { post: String(id), account: accountId },
+                  {
+                    post: String(id),
+                    account: accountId,
+                    intent,
+                    channel: route.params.get("channel") ?? "all",
+                  },
                   false,
                 )
               }

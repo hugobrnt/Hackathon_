@@ -1,207 +1,162 @@
 import type { Intent, PostIntentStats } from "../../api/types";
-import {
-  aggregate,
-  intentLabels,
-  intentActions,
-  PIR_DEFINITION,
-  sortPosts,
-} from "../analytics/model";
+import { aggregate, PIR_DEFINITION, sortPosts } from "../analytics/model";
 import { formatCount, formatPercent } from "../../shared/format";
-import { Button, Metric } from "../../shared/ui";
+import { Icon } from "../../shared/ui";
+import { PlatformBadge } from "../../shared/PlatformBadge";
+import "./dashboard.css";
+
+const feedback: { intent: Intent; label: string }[] = [
+  { intent: "pre_purchase_question", label: "Questions before buying" },
+  { intent: "feature_request", label: "Feature requests" },
+  { intent: "objection", label: "Reasons to hesitate" },
+  { intent: "testimonial", label: "Positive feedback" },
+];
+
 export function Dashboard({
   posts,
   onOpen,
   onInsight,
+  onPosts,
 }: {
   posts: PostIntentStats[];
   onOpen: (id: number) => void;
-  onInsight: (i: Intent) => void;
+  onInsight: (i: Intent | "all") => void;
+  onPosts: () => void;
 }) {
-  const data = aggregate(posts),
-    top = sortPosts(posts, "purchase_intent_rate")
-      .filter((p) => p.total_comments >= 10)
-      .slice(0, 3);
-  const strongest = sortPosts(posts, "intent_score")[0];
-  const actions: [Intent, string, string][] = [
-    [
-      "purchase_intent",
-      "Follow the strongest signal",
-      strongest?.post.caption ?? "Import posts to find your next opportunity.",
-    ],
-    [
-      "feature_request",
-      "Investigate product requests",
-      "Understand what people need before deciding what to build.",
-    ],
-    [
-      "support_complaint",
-      "Bring problems to the surface",
-      "Find the comments that deserve a personal response.",
-    ],
-  ];
-  const categories: Intent[] = [
-    "testimonial",
-    "objection",
-    "feature_request",
-    "support_complaint",
-  ];
+  const data = aggregate(posts);
+  const top = sortPosts(posts, "purchase_intent_rate")
+    .filter((p) => p.total_comments >= 10)
+    .slice(0, 3);
+  const pending = data.total - data.classified;
   return (
-    <div className="dashboard-grid">
-      <section className="next-moves">
-        <div className="section-heading">
-          <h2>Your next moves</h2>
-          <span className="pill">3 priorities</span>
+    <div className="overview">
+      <header className="overview-heading">
+        <h1>Overview</h1>
+        <span>
+          {posts.length} {posts.length === 1 ? "post" : "posts"} ·{" "}
+          {formatCount(data.total)} comments
+        </span>
+      </header>
+
+      <section
+        className="panel overview-intent"
+        data-tour="dashboard-signals"
+        aria-labelledby="overview-intent-title"
+      >
+        <div>
+          <h2 id="overview-intent-title">
+            Purchase intent rate{" "}
+            <span className="tooltip" tabIndex={0} aria-label={PIR_DEFINITION}>
+              <Icon name="help" />
+              <span role="tooltip">{PIR_DEFINITION}</span>
+            </span>
+          </h2>
+          <strong className="overview-rate">{formatPercent(data.rate)}</strong>
         </div>
-        <p className="muted">Start with the signals in your comments.</p>
-        {actions.map(([intent, title, desc], i) => (
-          <article
-            className={"panel action-card " + (i === 0 ? "subtle" : "")}
-            key={intent}
-          >
-            <span className="eyebrow">
-              0{i + 1} · {intentLabels[intent]}
-            </span>
-            <h3>{title}</h3>
-            <p>{desc}</p>
-            <span className="evidence-tag">
-              {data.intents[intent]} comments ·{" "}
-              {posts.filter((p) => p.intent_counts[intent] > 0).length} posts
-            </span>
-            <Button
-              primary={i === 0}
-              onClick={() =>
-                i === 0 && strongest
-                  ? onOpen(strongest.post.id)
-                  : onInsight(intent)
-              }
-              disabled={!data.intents[intent]}
-            >
-              {i === 0 ? "Inspect the top post" : "Explore the evidence"} →
-            </Button>
-          </article>
-        ))}
+        <div className="overview-explanation">
+          {data.total ? (
+            <p>
+              <strong>
+                {formatCount(data.intents.purchase_intent)} of{" "}
+                {formatCount(data.total)} comments
+              </strong>{" "}
+              mention buying, trying or signing up.
+            </p>
+          ) : (
+            <p>No comments to analyze yet.</p>
+          )}
+          {pending > 0 && (
+            <small>
+              {formatCount(pending)} comments still awaiting analysis.
+            </small>
+          )}
+        </div>
       </section>
-      <section className="audience-summary">
-        <h2>Understand your audience</h2>
-        <div className="panel signal-panel">
-          <span className="eyebrow">QUANTITATIVE SIGNALS</span>
-          <h3>Which content creates purchase intent?</h3>
-          <div
-            className="metrics-grid metrics-grid--three"
-            data-tour="dashboard-signals"
-          >
-            <Metric
-              label="Purchase intent rate"
-              value={formatPercent(data.rate)}
-              hint={
-                data.intents.purchase_intent +
-                " / " +
-                data.total +
-                " audience comments"
-              }
-              accent
-              definition={PIR_DEFINITION}
-            />
-            <Metric
-              label="Intent comments"
-              value={data.intents.purchase_intent}
-              hint="Explicit buy / try / sign-up signals"
-            />
-            <Metric
-              label="Needs review"
-              value={data.review}
-              hint="Uncertain classifications"
-            />
-          </div>
-          <div className="section-heading">
-            <h4>Purchase intent by post</h4>
-            <span className="muted small">10+ audience comments</span>
-          </div>
-          <div className="bar-list">
-            {top.length ? (
-              top.map((p) => (
+
+      <div className="overview-columns">
+        <section
+          className="panel overview-posts"
+          aria-labelledby="overview-posts-title"
+        >
+          <header className="overview-panel-heading">
+            <h2 id="overview-posts-title">Top posts</h2>
+            <p>Ranked by purchase intent rate</p>
+          </header>
+          <ol className="overview-ranking">
+            {top.map((p, i) => (
+              <li key={p.post.id}>
                 <button
-                  className="chart-row"
-                  key={p.post.id}
+                  className="overview-post"
                   onClick={() => onOpen(p.post.id)}
+                  aria-label={
+                    "View post: " + (p.post.caption || "Untitled post")
+                  }
                 >
-                  <span>{p.post.caption}</span>
-                  <div className="track">
-                    <span
-                      style={{
-                        width:
-                          Math.max(
-                            1,
-                            (p.purchase_intent_rate /
-                              Math.max(
-                                ...top.map((t) => t.purchase_intent_rate),
-                                0.01,
-                              )) *
-                              100,
-                          ) + "%",
-                      }}
-                    />
-                  </div>
-                  <strong>
-                    {formatPercent(p.purchase_intent_rate)}
+                  <span className="overview-rank" aria-hidden="true">
+                    {i + 1}
+                  </span>
+                  <span className="overview-post-copy">
+                    <span className="overview-post-title">
+                      <PlatformBadge platform={p.post.platform} />
+                      <span>{p.post.caption || "Untitled post"}</span>
+                    </span>
                     <small>
-                      {p.intent_counts.purchase_intent}/{p.total_comments}
+                      {p.intent_counts.purchase_intent} of {p.total_comments}{" "}
+                      comments show buying intent
                     </small>
-                  </strong>
+                  </span>
+                  <strong>{formatPercent(p.purchase_intent_rate)}</strong>
+                  <span className="overview-arrow" aria-hidden="true">
+                    ↗
+                  </span>
                 </button>
-              ))
-            ) : (
-              <p className="muted">
-                More comments are needed to compare posts.
-              </p>
-            )}
-          </div>
-        </div>
-        <div className="panel signal-panel">
-          <span className="eyebrow">QUALITATIVE SIGNALS</span>
-          <h3>What your audience is telling you</h3>
-          <p className="muted small">{data.classified} classified comments</p>
-          <div className="table-scroll">
-            <table className="insight-table">
-              <thead>
-                <tr>
-                  <th>Signal</th>
-                  <th>Comments</th>
-                  <th>Across posts</th>
-                  <th>Next step</th>
-                </tr>
-              </thead>
-              <tbody>
-                {categories.map((i) => (
-                  <tr key={i}>
-                    <th>
-                      <span className={"dot intent-" + i} />
-                      {intentLabels[i]}
-                    </th>
-                    <td>{data.intents[i]}</td>
-                    <td>
-                      {posts.filter((p) => p.intent_counts[i] > 0).length}
-                    </td>
-                    <td>
-                      <button
-                        className="text-link"
-                        onClick={() => onInsight(i)}
-                      >
-                        {intentActions[i]} ↗
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="summary-footer">
-            <span>{formatCount(data.views)} available post views</span>
-            <span>{formatCount(data.shares)} shares</span>
-            <span>{posts.length} imported posts</span>
-          </div>
-        </div>
-      </section>
+              </li>
+            ))}
+          </ol>
+          {!top.length && (
+            <p className="overview-empty">
+              A post needs at least 10 comments to appear in this ranking.
+            </p>
+          )}
+          <footer className="overview-panel-footer">
+            <button className="text-link" onClick={onPosts}>
+              View all posts →
+            </button>
+            {!!top.length && <span>10+ comments per post</span>}
+          </footer>
+        </section>
+
+        <section
+          className="panel overview-feedback"
+          aria-labelledby="overview-feedback-title"
+        >
+          <header className="overview-panel-heading">
+            <h2 id="overview-feedback-title">Audience feedback</h2>
+            <p>Comments grouped by what they say</p>
+          </header>
+          <ul className="overview-feedback-list">
+            {feedback.map(({ intent, label }) => (
+              <li key={intent}>
+                <button
+                  disabled={!data.intents[intent]}
+                  onClick={() => onInsight(intent)}
+                >
+                  <span>{label}</span>
+                  <strong>{formatCount(data.intents[intent])}</strong>
+                  <span className="overview-arrow" aria-hidden="true">
+                    ↗
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+          <footer className="overview-panel-footer">
+            <button className="text-link" onClick={() => onInsight("all")}>
+              Explore insights →
+            </button>
+          </footer>
+        </section>
+      </div>
     </div>
   );
 }

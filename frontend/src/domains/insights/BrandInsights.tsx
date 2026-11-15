@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import type { DataMode } from "../../api/source";
 import { useBrandPosts } from "../accounts/useBrandPosts";
 import type { SocialAccount, Intent } from "../../api/types";
@@ -13,6 +13,8 @@ export function BrandInsights({
   initial,
   query,
   onOpen,
+  channel,
+  onChannelChange,
 }: {
   mode: DataMode;
   accounts: SocialAccount[];
@@ -20,8 +22,9 @@ export function BrandInsights({
   initial: Intent | "all";
   query: string;
   onOpen: (id: number, account: string) => void;
+  channel: string;
+  onChannelChange: (channel: string) => void;
 }) {
-  const [channel, setChannel] = useState("all");
   const { results, allPosts, retry } = useBrandPosts(mode, accounts, revision);
   const selected =
     channel === "all"
@@ -42,7 +45,7 @@ export function BrandInsights({
           <select
             aria-label="Insights channel"
             value={channel}
-            onChange={(e) => setChannel(e.target.value)}
+            onChange={(e) => onChannelChange(e.target.value)}
           >
             <option value="all">All channels</option>
             {accounts.map((a) => (
@@ -91,7 +94,7 @@ export function BrandInsights({
                       <td>
                         <button
                           className="text-link"
-                          onClick={() => setChannel(r.account.id)}
+                          onClick={() => onChannelChange(r.account.id)}
                         >
                           {r.account.platform} · @{r.account.username} ↗
                         </button>
