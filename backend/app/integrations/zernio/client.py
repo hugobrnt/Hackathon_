@@ -19,7 +19,11 @@ from app.integrations.zernio.schemas import (
     MessagesResponse,
     PlatformPost,
     PostAnalyticsResponse,
+    AdAccount,
+    AdAccountsResponse,
+    BoostResponse,
     PostMetrics,
+    ZernioAd,
     PrivateReplyResult,
     PostCommentsResponse,
     Profile,
@@ -80,10 +84,11 @@ class ZernioClient:
         path: str,
         params: Mapping[str, str | int | bool | None] | None = None,
         json: Mapping[str, object] | None = None,
+        headers: Mapping[str, str] | None = None,
     ) -> object:
         clean = {k: v for k, v in (params or {}).items() if v is not None}
         try:
-            response = await self._http.request(method, path, params=clean, json=json)
+            response = await self._http.request(method, path, params=clean, json=json, headers=headers)
         except httpx.HTTPError as exc:
             raise ZernioError(502, f"Zernio is unreachable: {exc}") from exc
         if response.is_error:
@@ -149,6 +154,23 @@ class ZernioClient:
             json={"accountId": account_id, "message": message},
         )
         return PrivateReplyResult.model_validate(data)
+
+    # Ads
+
+    async def list_ad_accounts(self, account_id: str) -> list[AdAccount]:
+        data = await self._get("/ads/accounts", {"accountId": account_id, "inScopeOnly": True})
+        return AdAccountsResponse.model_validate(data).accounts
+
+    async def boost_post(self, payload: Mapping[str, object], idempotency_key: str) -> ZernioAd:
+        """Boost a published post as an ad. The key makes a retry return the first result."""
+        data = await self._request("POST", "/ads/boost", json=payload, headers={"Idempotency-Key": idempotency_key})
+        return BoostResponse.model_validate(data).ad
+
+    async def get_ad(self, ad_id: str) -> ZernioAd:
+        data = await self._get(f"/ads/{ad_id}")
+        if isinstance(data, dict) and isinstance(data.get("ad"), dict):
+            data = data["ad"]
+        return ZernioAd.model_validate(data)
 
     async def sync_external_posts(self, account_id: str) -> None:
         """Ask Zernio to read the recent posts and their metrics from the platform now."""
