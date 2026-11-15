@@ -14,6 +14,7 @@ from app.domains.analytics.schemas import PostDetail, PostIntentStats, PostSortK
 from app.domains.classification.schemas import ClassificationRead
 from app.domains.classification.service import get_for_messages
 from app.domains.content import repository
+from app.domains.products.models import Product
 from app.domains.classification.models import MessageClassification
 from app.domains.classification.taxonomy import Intent, Sentiment
 from app.domains.content.models import Message, MessageDirection, MessageKind, Post
@@ -135,12 +136,16 @@ KEY_COMMENTS_LIMIT = 5
 
 def messages_with_classification(session: Session, messages: list[Message]) -> list[MessageRead]:
     classifications = get_for_messages(session, [m.id for m in messages if m.id is not None])
+    titles: dict[int, Product | None] = {}
     result = []
     for message in messages:
         item = MessageRead.model_validate(message)
         row = classifications.get(message.id) if message.id is not None else None
         if row is not None:
             item.classification = ClassificationRead.model_validate(row)
+            if row.product_id is not None:
+                product = titles.setdefault(row.product_id, session.get(Product, row.product_id))
+                item.classification.product_title = product.title if product else None
         result.append(item)
     return result
 

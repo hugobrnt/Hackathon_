@@ -1,21 +1,23 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.domains.classification.taxonomy import Intent
-from app.domains.outreach.models import DmStatus
+from app.domains.outreach.models import DmStatus, PublicReplyStatus
 from app.domains.products.models import BusinessType
 
 
 class AutoDmSettingsUpdate(BaseModel):
     enabled: bool
-    landing_url: HttpUrl | None = Field(
+    product_id: int | None = Field(
         default=None,
-        description="Optional page for this post only. Default: the landing URL of the account product (F7 bis). "
-        "The product (URL + description) stays required.",
+        description="Optional: force this product of the catalog for all the DMs of this post. "
+        "Default: the product found for each comment (F7 ter).",
     )
-    require_approval: bool = Field(
-        default=False, description="F17: all DMs wait for a human approval."
+    require_approval: bool = Field(default=False, description="F17: all DMs wait for a human approval.")
+    public_reply: bool = Field(
+        default=True,
+        description="F16: after each DM, reply in public under the comment (custom text, language of the comment).",
     )
 
 
@@ -24,8 +26,9 @@ class AutoDmSettingsRead(BaseModel):
 
     post_id: int
     enabled: bool
-    landing_url: str | None
+    product_id: int | None
     require_approval: bool
+    public_reply: bool
     updated_at: datetime
 
 
@@ -43,6 +46,8 @@ class DmDraftInput(BaseModel):
 
 
 class DmDraft(BaseModel):
+    product_id: int | None = None
+    product_title: str | None = None
     text: str
     writer: str = Field(description="Model that wrote the text, or `template`.")
     tracked_link_code: str | None = None
@@ -67,14 +72,18 @@ class DmAttemptRead(BaseModel):
     text: str
     writer: str
     zernio_message_id: str | None
+    product_id: int | None = None
+    product_title: str | None = None
     tracked_link_code: str | None = None
     tracked_url: str | None = Field(
         default=None,
         description="Short tracked link of this DM (F8). Each visit is counted as a click.",
     )
-    link_clicks: int = Field(
-        default=0, description="Human clicks on the link of this DM."
-    )
+    public_reply_status: PublicReplyStatus | None = Field(default=None, description="F16: public reply under the comment.")
+    public_reply_text: str | None = None
+    public_reply_comment_id: str | None = None
+    public_reply_reason: str | None = None
+    link_clicks: int = Field(default=0, description="Human clicks on the link of this DM.")
     retryable: bool
     comment_time: datetime | None
     created_at: datetime
@@ -86,8 +95,10 @@ class DmAttemptRead(BaseModel):
 
 
 class ApproveRequest(BaseModel):
-    text: str | None = Field(
-        default=None, max_length=1000, description="Optional edited text of the DM."
+    text: str | None = Field(default=None, max_length=1000, description="Optional edited text of the DM.")
+    product_id: int | None = Field(
+        default=None,
+        description="Optional product of the catalog. Without `text`, the DM is written again for this product.",
     )
 
 
@@ -98,3 +109,16 @@ class AutoDmRunResult(BaseModel):
     skipped: int = 0
     failed: int = 0
     attempts: list[DmAttemptRead] = []
+
+
+class PublicReplyInput(BaseModel):
+    comment: str
+    author_username: str | None
+    intent: Intent
+    product_title: str | None
+    post_caption: str
+
+
+class PublicReplyPreview(BaseModel):
+    text: str | None = Field(description="The public reply, or None if the LLM could not write it.")
+    writer: str

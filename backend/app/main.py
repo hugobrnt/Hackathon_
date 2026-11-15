@@ -19,6 +19,7 @@ from app.domains.products.router import router as products_router
 from app.domains.tracking.router import router as tracking_router
 from app.domains.ads.router import router as ads_router
 from app.domains.insights.router import router as insights_router
+from app.domains.conversations.router import router as conversations_router
 from app.domains.webhooks.router import router as webhooks_router
 
 
@@ -59,6 +60,7 @@ def create_app() -> FastAPI:
     app.include_router(tracking_router)
     app.include_router(ads_router)
     app.include_router(insights_router)
+    app.include_router(conversations_router)
 
     @app.get("/health", tags=["system"], summary="Health check")
     def health() -> dict[str, str]:

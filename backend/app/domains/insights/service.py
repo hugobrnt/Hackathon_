@@ -10,7 +10,13 @@ from app.domains.classification.models import MessageClassification
 from app.domains.content.models import Message, MessageDirection
 from app.domains.insights.grouping import GroupItem, ThemeGrouper
 from app.domains.insights.models import CATEGORY_INTENTS, InsightCategory, InsightTheme
-from app.domains.insights.schemas import CategoryInsights, InsightsReport, InsightsRunRequest, InsightThemeRead
+from app.domains.insights.schemas import (
+    CategoryInsights,
+    InsightComment,
+    InsightsReport,
+    InsightsRunRequest,
+    InsightThemeRead,
+)
 
 MAX_MESSAGES_PER_CATEGORY = 150
 QUOTES_PER_THEME = 3
@@ -24,7 +30,7 @@ class InsightsError(Exception):
 
 
 def _messages(
-    session: Session, account_id: str, category: InsightCategory, post_id: int | None
+    session: Session, account_id: str, category: InsightCategory, post_id: int | None, product_id: int | None = None
 ) -> list[tuple[Message, float]]:
     """Incoming messages of the category, most confident first."""
     query = (
@@ -41,6 +47,8 @@ def _messages(
     )
     if post_id is not None:
         query = query.where(Message.post_id == post_id)
+    if product_id is not None:
+        query = query.where(MessageClassification.product_id == product_id)
     return [(m, c) for m, c in session.exec(query.limit(MAX_MESSAGES_PER_CATEGORY))]
 
 
@@ -55,7 +63,34 @@ def _quotes(messages: list[Message]) -> list[str]:
     return quotes
 
 
-def _report(rows: list[InsightTheme], totals: dict[InsightCategory, int], top: int) -> InsightsReport:
+def _theme_read(session: Session, theme: InsightTheme) -> InsightThemeRead:
+    item = InsightThemeRead.model_validate(theme)
+    messages = {m.id: m for m in session.exec(select(Message).where(col(Message.id).in_(theme.message_ids)))}
+    products = {
+        r.message_id: r.product_id
+        for r in session.exec(
+            select(MessageClassification).where(col(MessageClassification.message_id).in_(theme.message_ids))
+        )
+    }
+    item.comments = [
+        InsightComment(
+            id=m.id,
+            kind=m.kind.value,
+            text=m.text,
+            author_name=m.author_name,
+            post_id=m.post_id,
+            product_id=products.get(m.id),
+            created_time=m.created_time,
+        )
+        for message_id in theme.message_ids
+        if (m := messages.get(message_id)) is not None and m.id is not None
+    ]
+    return item
+
+
+def _report(
+    session: Session, rows: list[InsightTheme], totals: dict[InsightCategory, int], top: int
+) -> InsightsReport:
     first = rows[0] if rows else None
     categories = []
     for category in InsightCategory:
@@ -66,7 +101,7 @@ def _report(rows: list[InsightTheme], totals: dict[InsightCategory, int], top: i
             CategoryInsights(
                 category=category,
                 total_messages=totals.get(category, 0),
-                themes=[InsightThemeRead.model_validate(t) for t in themes],
+                themes=[_theme_read(session, t) for t in themes],
             )
         )
     writers = sorted({r.writer for r in rows if r.writer != "none"})
@@ -84,7 +119,9 @@ async def run(session: Session, grouper: ThemeGrouper, request: InsightsRunReque
     if session.get(SocialAccount, request.account_id) is None:
         raise InsightsError(404, "Account not found.")
     run_id = uuid.uuid4().hex
-    selected = {c: _messages(session, request.account_id, c, request.post_id) for c in InsightCategory}
+    selected = {
+        c: _messages(session, request.account_id, c, request.post_id, request.product_id) for c in InsightCategory
+    }
     totals = {c: len(items) for c, items in selected.items()}
 
     async def group(category: InsightCategory) -> tuple[InsightCategory, list[InsightTheme]]:
@@ -120,7 +157,7 @@ async def run(session: Session, grouper: ThemeGrouper, request: InsightsRunReque
     session.commit()
     for row in rows:
         session.refresh(row)
-    report = _report(rows, totals, request.top)
+    report = _report(session, rows, totals, request.top)
     report.run_id, report.account_id, report.post_id = run_id, request.account_id, request.post_id
     return report
 
@@ -135,4 +172,4 @@ def latest(session: Session, account_id: str, post_id: int | None = None, top: i
         raise InsightsError(404, "No insights yet. Run POST /insights/run first.")
     rows = list(session.exec(select(InsightTheme).where(InsightTheme.run_id == last.run_id)))
     totals = {c: len(_messages(session, account_id, c, post_id)) for c in InsightCategory}
-    return _report(rows, totals, top)
+    return _report(session, rows, totals, top)

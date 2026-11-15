@@ -9,6 +9,7 @@ from app.core.errors import ZERNIO_ERROR_RESPONSES
 from app.domains.accounts.models import SocialAccount
 from app.domains.classification.classifiers import Classifier, get_classifier
 from app.domains.classification.service import classify_in_background
+from app.domains.products.matching import ProductMatcher, get_product_matcher
 from app.domains.ingestion import demo, service
 from app.domains.ingestion.schemas import ImportResult
 from app.integrations.zernio.client import ZernioClient, get_zernio_client
@@ -19,6 +20,7 @@ SessionDep = Annotated[Session, Depends(get_session)]
 ZernioDep = Annotated[ZernioClient, Depends(get_zernio_client)]
 EngineDep = Annotated[Engine, Depends(get_engine)]
 ClassifierDep = Annotated[Classifier, Depends(get_classifier)]
+MatcherDep = Annotated[ProductMatcher, Depends(get_product_matcher)]
 
 
 @router.post(
@@ -39,6 +41,7 @@ async def import_account(
     background_tasks: BackgroundTasks,
     engine: EngineDep,
     classifier: ClassifierDep,
+    matcher: MatcherDep,
 ) -> ImportResult:
     account = session.get(SocialAccount, account_id)
     if account is None:
@@ -49,7 +52,7 @@ async def import_account(
     if account.is_demo:
         raise HTTPException(status_code=400, detail="Use POST /demo/load for the demo account.")
     result = await service.import_account(session, zernio, account)
-    background_tasks.add_task(classify_in_background, engine, classifier, None, account.id)
+    background_tasks.add_task(classify_in_background, engine, classifier, None, account.id, matcher)
     return result
 
 
@@ -60,8 +63,12 @@ async def import_account(
     description="Loads realistic demo posts, comments and DMs. Use it if the Zernio API or the account fails.",
 )
 def load_demo(
-    session: SessionDep, background_tasks: BackgroundTasks, engine: EngineDep, classifier: ClassifierDep
+    session: SessionDep,
+    background_tasks: BackgroundTasks,
+    engine: EngineDep,
+    classifier: ClassifierDep,
+    matcher: MatcherDep,
 ) -> ImportResult:
     result = demo.load_demo_data(session)
-    background_tasks.add_task(classify_in_background, engine, classifier, None, result.account_id)
+    background_tasks.add_task(classify_in_background, engine, classifier, None, result.account_id, matcher)
     return result

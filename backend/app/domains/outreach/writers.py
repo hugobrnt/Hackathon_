@@ -1,11 +1,12 @@
 """DM text generation: Workers AI, with a template per intent as fallback."""
 
 import logging
+import re
 from typing import Any, Protocol
 
 from app.core.config import Settings, get_settings
 from app.domains.classification.taxonomy import Intent
-from app.domains.outreach.schemas import DmDraft, DmDraftInput
+from app.domains.outreach.schemas import DmDraft, DmDraftInput, PublicReplyInput
 from app.domains.products.models import BusinessType
 from app.integrations.cloudflare.workers_ai import WorkersAIClient, WorkersAIError
 
@@ -84,6 +85,10 @@ TEMPLATES: dict[BusinessType, dict[Intent, str]] = {
 class DmWriter(Protocol):
     async def write(self, item: DmDraftInput) -> DmDraft: ...
 
+    async def write_public_reply(self, item: PublicReplyInput) -> str | None:
+        """F16: custom public reply. None means: do not reply (no hard-coded fallback)."""
+        ...
+
 
 def template_draft(item: DmDraftInput) -> DmDraft:
     templates = TEMPLATES[item.business_type]
@@ -117,6 +122,9 @@ def template_draft(item: DmDraftInput) -> DmDraft:
 class TemplateDmWriter:
     async def write(self, item: DmDraftInput) -> DmDraft:
         return template_draft(item)
+
+    async def write_public_reply(self, item: PublicReplyInput) -> str | None:
+        return None  # The public reply must be custom: without LLM, no public reply.
 
 
 class WorkersAIDmWriter:
@@ -171,6 +179,61 @@ class WorkersAIDmWriter:
             # A DM without the link, or too long, is not usable: use the template.
             return template_draft(item)
         return DmDraft(text=text, writer=model)
+
+    async def write_public_reply(self, item: PublicReplyInput) -> str | None:
+        user = (
+            f"Intent: {item.intent.value}\n"
+            f"Product: {item.product_title or 'unknown'}\n"
+            f"Post caption: {item.post_caption.strip()[:300] or 'none'}\n"
+            f"Comment: {item.comment.strip()[:400]}"
+        )
+        messages = [{"role": "system", "content": PUBLIC_REPLY_PROMPT}, {"role": "user", "content": user}]
+        try:
+            raw = await self._client.run_json(self._settings.classifier_large_model, messages, PUBLIC_REPLY_SCHEMA, 120)
+        except WorkersAIError as exc:
+            logger.warning("Public reply generation failed: %s", exc)
+            return None
+        return clean_public_reply(str(raw.get("reply", "")))
+
+
+PUBLIC_REPLY_PROMPT = """You write the short public reply of a brand under an Instagram comment. The brand \
+just sent a private message (DM) to the person. The reply tells the person to look at their DMs, and \
+shows to the other readers that the brand answers.
+
+Rules:
+- Write in the SAME language as the comment (French, English, Spanish...). If the comment has only emojis, \
+use the language of the post caption. Use "tu" in French.
+- One sentence, at most 140 characters, warm and natural, at most 1 emoji.
+- Name the subject of the comment explicitly (the size asked, the delivery country, the price, the order, \
+the variant...), so the reply is specific to this comment. Do not copy the comment.
+- Never add a detail that the comment does not contain (no size, color or country that the person did not \
+write). If the comment has no precise subject, name the product.
+- The WHOLE reply is in the language of the comment, also the first words. Examples: comment in English \
+"Do you ship to Canada?" → "Good question! The details on shipping to Canada are in your DMs 📩". \
+Comment in French "Dispo en M ?" → "Bonne question ! Je t'ai envoyé les infos sur la taille M en DM 📩".
+- Start with a short friendly reaction (thanks, good question, we hear you...) adapted to the intent.
+- Say that the answer or the details are in their DMs (they can be in the message requests).
+- Never give a price, a link, a discount or any product fact in public.
+- Do not start with the username: the platform shows the reply under the comment.
+- reply: the text only.
+Answer with the JSON object only."""
+
+PUBLIC_REPLY_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {"reply": {"type": "string"}},
+    "required": ["reply"],
+}
+
+MAX_PUBLIC_REPLY = 200
+_URL = re.compile(r"https?://|www\.", re.IGNORECASE)
+
+
+def clean_public_reply(text: str) -> str | None:
+    """Reject an empty, too long or unsafe reply (link or price)."""
+    reply = " ".join(text.split()).strip().strip('"')
+    if not reply or len(reply) > MAX_PUBLIC_REPLY or _URL.search(reply) or re.search(r"\d+\s?(€|\$|eur)", reply, re.I):
+        return None
+    return reply
 
 
 def get_dm_writer() -> DmWriter:

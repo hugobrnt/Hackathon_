@@ -4,12 +4,26 @@
     "platform": "instagram",
     "username": "maison.karim"
   },
-  "product": {
-    "business_type": "ecommerce",
-    "name": "Hoodie Maison Karim",
-    "landing_url": "https://example.com/hoodie",
-    "description": "Hoodie en coton bio fabriqué dans notre atelier à Roubaix. 59 €. Coloris noir, gris et vert sauge (précommande, expédition sous 3 semaines). Tailles XS à XXL. Livraison offerte en France dès 50 €, Belgique et Suisse 6,90 €. Retours gratuits sous 30 jours. Paiement en 3 fois sans frais dès 50 €."
-  },
+  "products": [
+    {
+      "business_type": "ecommerce",
+      "title": "Hoodie Maison Karim (noir et gris)",
+      "landing_url": "https://example.com/hoodie",
+      "description": "Hoodie en coton bio fabriqué dans notre atelier à Roubaix. 59 €. Coloris noir et gris, en stock. Tailles XS à XXL. Livraison offerte en France dès 50 €, Belgique et Suisse 6,90 €. Retours gratuits sous 30 jours. Paiement en 3 fois sans frais dès 50 €."
+    },
+    {
+      "business_type": "ecommerce",
+      "title": "Hoodie vert sauge (précommande)",
+      "landing_url": "https://example.com/hoodie-vert-sauge",
+      "description": "Nouvelle couleur vert sauge du hoodie en coton bio, 59 €. En précommande : expédition sous 3 semaines, remboursement intégral si le délai n'est pas tenu. Tailles XS à XXL. Livraison offerte en France dès 50 €."
+    },
+    {
+      "business_type": "ecommerce",
+      "title": "Hoodie zippé",
+      "landing_url": "https://example.com/hoodie-zippe",
+      "description": "Version zippée du hoodie en coton bio, 69 €. Fermeture éclair YKK, deux poches. Coloris noir. Tailles S à XL. Livraison offerte en France dès 50 €. Retours gratuits sous 30 jours."
+    }
+  ],
   "posts": [
     {
       "id": "demo-post-1",

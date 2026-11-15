@@ -14,8 +14,14 @@ class PostAutoDm(SQLModel, table=True):
 
     post_id: int = Field(foreign_key="posts.id", primary_key=True)
     enabled: bool = False
-    landing_url: str | None = Field(default=None, description="Override of the product landing URL for this post.")
+    landing_url: str | None = Field(default=None, description="Deprecated (one-product version). Not used.")
+    product_id: int | None = Field(default=None, description="Product forced for the DMs of this post (F7 ter).")
     require_approval: bool = Field(default=False, description="All the DMs of this post wait for a human approval.")
+    public_reply: bool = Field(
+        default=True,
+        sa_column_kwargs={"server_default": "1"},
+        description="F16: after the DM, reply in public under the comment.",
+    )
     updated_at: datetime = Field(default_factory=utc_now)
 
 
@@ -30,6 +36,12 @@ class DmStatus(StrEnum):
 
 # The statuses that count for the rule "one DM per person and per post".
 ACTIVE_STATUSES = (DmStatus.pending_approval, DmStatus.sending, DmStatus.sent)
+
+
+class PublicReplyStatus(StrEnum):
+    sent = "sent"
+    failed = "failed"
+    skipped = "skipped"
 
 
 class DmAttempt(SQLModel, table=True):
@@ -49,7 +61,13 @@ class DmAttempt(SQLModel, table=True):
     text: str = ""
     writer: str = ""
     zernio_message_id: str | None = None
+    product_id: int | None = Field(default=None, index=True, description="Product proposed in the DM (F7 ter).")
     tracked_link_code: str | None = Field(default=None, description="Short link in the DM (F8).")
+    # F16: public reply under the comment, after the DM.
+    public_reply_status: PublicReplyStatus | None = None
+    public_reply_text: str | None = None
+    public_reply_comment_id: str | None = None
+    public_reply_reason: str | None = None
     retryable: bool = False
     comment_time: datetime | None = None
     created_at: datetime = Field(default_factory=utc_now)

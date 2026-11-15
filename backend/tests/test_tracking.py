@@ -8,7 +8,7 @@ from sqlmodel import Session
 from app.core.config import get_settings
 from app.domains.classification.taxonomy import Intent
 from app.domains.tracking.service import is_bot, with_utm
-from tests.test_outreach import PRODUCT, add_comment, mock_reply, setup_post
+from tests.test_outreach import PRODUCT, add_comment, add_product, mock_reply, setup_post
 
 BROWSER = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Instagram 350.0"
 
@@ -40,7 +40,7 @@ def test_click_flow_and_ctr(client: TestClient, session: Session, zernio_mock: r
     add_comment(session, post_id, "c2", "u2", Intent.pre_purchase_question)
     mock_reply(zernio_mock, "c1")
     mock_reply(zernio_mock, "c2")
-    client.put("/accounts/acc-1/product", json=PRODUCT)
+    add_product(client)
     client.put(f"/posts/{post_id}/auto-dm", json={"enabled": True})
     attempts = client.post(f"/posts/{post_id}/auto-dm/run").json()["attempts"]
     assert [a["status"] for a in attempts] == ["sent", "sent"]
@@ -79,7 +79,7 @@ def test_localhost_falls_back_to_utm_url(
     get_settings.cache_clear()
     post_id = setup_post(session)
     message_id = add_comment(session, post_id, "c1", "u1", Intent.purchase_intent)
-    client.put("/accounts/acc-1/product", json=PRODUCT)
+    add_product(client)
     client.put(f"/posts/{post_id}/auto-dm", json={"enabled": True})
     draft = client.post(f"/messages/{message_id}/auto-dm/preview").json()
     assert draft["tracked_url"].startswith(str(PRODUCT["landing_url"]))

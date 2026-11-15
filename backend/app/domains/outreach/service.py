@@ -19,7 +19,7 @@ from app.domains.accounts.models import utc_now
 from app.domains.classification.models import MessageClassification
 from app.domains.classification.taxonomy import DM_INTENTS, Sentiment
 from app.domains.content.models import Message, MessageDirection, MessageKind, Post
-from app.domains.outreach.models import ACTIVE_STATUSES, DmAttempt, DmStatus, PostAutoDm
+from app.domains.outreach.models import ACTIVE_STATUSES, DmAttempt, DmStatus, PostAutoDm, PublicReplyStatus
 from app.domains.outreach.schemas import (
     AutoDmRunResult,
     AutoDmSettingsUpdate,
@@ -27,9 +27,12 @@ from app.domains.outreach.schemas import (
     DmDraft,
     DmDraftInput,
 )
+from app.domains.outreach.public_reply import post_public_reply
 from app.domains.outreach.writers import DmWriter
 from app.domains.products.models import Product
 from app.domains.replies.models import ReplySettings
+from app.domains.products.service import active_catalog
+from app.domains.conversations import service as conversations
 from app.domains.tracking import service as tracking
 from app.domains.tracking.models import TrackedLink
 from app.integrations.zernio.client import (
@@ -56,6 +59,9 @@ def _as_utc(value: datetime | None) -> datetime | None:
 
 def to_read(attempt: DmAttempt, session: Session | None = None) -> DmAttemptRead:
     item = DmAttemptRead.model_validate(attempt)
+    if attempt.product_id is not None and session is not None:
+        product = session.get(Product, attempt.product_id)
+        item.product_title = product.title if product else None
     if attempt.tracked_link_code:
         item.tracked_url = tracking.short_url(
             attempt.tracked_link_code
@@ -82,26 +88,30 @@ def get_post_settings(session: Session, post_id: int) -> PostAutoDm:
 
 
 NO_PRODUCT = (
-    "No product: describe it first with PUT /accounts/{account_id}/product "
-    "(profile, landing URL and description are required for the automatic DMs)."
+    "The catalog is empty: add a product first with POST /accounts/{account_id}/products "
+    "(title, landing URL and description are required for the automatic DMs)."
 )
+PRODUCT_UNKNOWN = "Product not identified: choose the product of the catalog (product_id) and approve the DM."
 
 
-def product_for(session: Session, post: Post) -> Product | None:
-    """The product of the account, only if it has the required URL and description (F7 bis)."""
-    product = session.get(Product, post.account_id)
-    if product is None or not product.landing_url or not product.description.strip():
+def _usable(session: Session, product_id: int | None, account_id: str) -> Product | None:
+    if product_id is None:
         return None
-    return product
+    return next((p for p in active_catalog(session, account_id) if p.id == product_id), None)
 
 
-def landing_url_for(product: Product, rule: PostAutoDm | None) -> str:
-    """The post override first, then the landing URL of the product."""
-    return (
-        rule.landing_url
-        if rule is not None and rule.landing_url
-        else product.landing_url
-    )
+def product_for_message(
+    session: Session, message: Message, classification: MessageClassification | None, rule: PostAutoDm | None
+) -> Product | None:
+    """F7 ter: the product found for the comment, else the product forced on the post, else the only product."""
+    found = _usable(session, classification.product_id if classification else None, message.account_id)
+    if found is not None:
+        return found
+    forced = _usable(session, rule.product_id if rule else None, message.account_id)
+    if forced is not None:
+        return forced
+    catalog = active_catalog(session, message.account_id)
+    return catalog[0] if len(catalog) == 1 else None
 
 
 def set_post_settings(
@@ -110,11 +120,14 @@ def set_post_settings(
     row = get_post_settings(session, post_id)
     post = session.get(Post, post_id)
     assert post is not None
-    if update.enabled and product_for(session, post) is None:
+    if update.enabled and not active_catalog(session, post.account_id):
         raise OutreachError(400, NO_PRODUCT)
+    if update.product_id is not None and _usable(session, update.product_id, post.account_id) is None:
+        raise OutreachError(400, "This product is not an active product of the account.")
     row.enabled = update.enabled
-    row.landing_url = str(update.landing_url) if update.landing_url else None
+    row.product_id = update.product_id
     row.require_approval = update.require_approval
+    row.public_reply = update.public_reply
     row.updated_at = utc_now()
     session.add(row)
     session.commit()
@@ -153,12 +166,8 @@ def _decide(
             f"The comment is older than {settings.auto_dm_max_age_days} days (Meta limit).",
         )
     assert message.post_id is not None and message.id is not None
-    post = session.get(Post, message.post_id)
-    if post is None or product_for(session, post) is None:
-        return (
-            DmStatus.skipped,
-            "No product (landing URL and description) for this account.",
-        )
+    if not active_catalog(session, message.account_id):
+        return DmStatus.skipped, "The catalog of the account is empty."
     if _already_contacted(session, message.post_id, message.author_id, message.id):
         return DmStatus.skipped, "This person already has a DM for this post."
     preferences = session.get(ReplySettings, message.account_id)
@@ -179,10 +188,9 @@ def _decide(
             "Negative comment: a human must approve the DM.",
         )
     if classification.needs_review:
-        return (
-            DmStatus.pending_approval,
-            "Uncertain classification: a human must approve the DM.",
-        )
+        return DmStatus.pending_approval, "Uncertain classification: a human must approve the DM."
+    if product_for_message(session, message, classification, rule) is None:
+        return DmStatus.pending_approval, PRODUCT_UNKNOWN
     return DmStatus.sending, None
 
 
@@ -191,21 +199,25 @@ async def draft_for(
     message: Message,
     classification: MessageClassification,
     writer: DmWriter,
+    product_id: int | None = None,
 ) -> DmDraft:
     post = session.get(Post, message.post_id) if message.post_id is not None else None
     if post is None:
         raise OutreachError(409, "The message is not a comment on a post.")
-    product = product_for(session, post)
-    if product is None:
+    if not active_catalog(session, post.account_id):
         raise OutreachError(409, NO_PRODUCT)
     rule = session.get(PostAutoDm, post.id)
-    # F8: the DM contains a short tracked link, which redirects to the landing URL with UTM parameters.
+    if product_id is not None:
+        product = _usable(session, product_id, post.account_id)
+        if product is None:
+            raise OutreachError(400, "This product is not an active product of the account.")
+    else:
+        product = product_for_message(session, message, classification, rule)
+    if product is None:
+        raise OutreachError(409, PRODUCT_UNKNOWN)
+    # F8: the DM contains a short tracked link, which redirects to the product page with UTM parameters.
     link = tracking.link_for_comment(
-        session,
-        message,
-        post,
-        landing_url_for(product, rule),
-        classification.intent.value,
+        session, message, post, product.landing_url, classification.intent.value, product.id
     )
     url = tracking.dm_url(link)
     preferences = session.get(ReplySettings, message.account_id)
@@ -217,20 +229,27 @@ async def draft_for(
             post_caption=post.caption,
             landing_url=url,
             business_type=product.business_type,
-            product_name=product.name,
+            product_name=product.title,
             product_description=product.description,
             reply_tone=preferences.tone if preferences else "friendly",
             reply_goal=preferences.goal if preferences else "product_visit",
         )
     )
-    return draft.model_copy(update={"tracked_link_code": link.code, "tracked_url": url})
+    return draft.model_copy(
+        update={
+            "tracked_link_code": link.code,
+            "tracked_url": url,
+            "product_id": product.id,
+            "product_title": product.title,
+        }
+    )
 
 
 # Sending
 
 
 async def _send(
-    session: Session, attempt: DmAttempt, zernio: ZernioClient
+    session: Session, attempt: DmAttempt, zernio: ZernioClient, writer: DmWriter | None = None
 ) -> DmAttempt:
     message = session.get(Message, attempt.message_id)
     post = session.get(Post, attempt.post_id)
@@ -262,6 +281,11 @@ async def _send(
     session.add(attempt)
     session.commit()
     session.refresh(attempt)
+    if attempt.status == DmStatus.sent:
+        conversations.start_for_attempt(session, attempt)  # F13: wait for the answer of the prospect.
+        if writer is not None:
+            # F16: only after a sent DM, so the public reply never promises a DM that does not exist.
+            attempt = await post_public_reply(session, attempt, writer, zernio)
     return attempt
 
 
@@ -304,9 +328,14 @@ async def process_message(
         comment_time=message.created_time,
     )
     if status != DmStatus.skipped:
-        draft = await draft_for(session, message, classification, writer)
-        attempt.text, attempt.writer = draft.text, draft.writer
-        attempt.tracked_link_code = draft.tracked_link_code
+        try:
+            draft = await draft_for(session, message, classification, writer)
+        except OutreachError:
+            draft = None  # Product not identified: the human chooses it at approval.
+        if draft is not None:
+            attempt.text, attempt.writer = draft.text, draft.writer
+            attempt.tracked_link_code = draft.tracked_link_code
+            attempt.product_id = draft.product_id
     try:
         session.add(attempt)
         session.commit()
@@ -318,7 +347,7 @@ async def process_message(
         ).first()
     session.refresh(attempt)
     if status == DmStatus.sending:
-        return await _send(session, attempt, zernio)
+        return await _send(session, attempt, zernio, writer)
     return attempt
 
 
@@ -398,22 +427,36 @@ def _get_attempt(session: Session, attempt_id: int) -> DmAttempt:
 
 
 async def approve(
-    session: Session, attempt_id: int, text: str | None, zernio: ZernioClient
+    session: Session,
+    attempt_id: int,
+    text: str | None,
+    zernio: ZernioClient,
+    product_id: int | None = None,
+    writer: DmWriter | None = None,
 ) -> DmAttempt:
     attempt = _get_attempt(session, attempt_id)
-    if not (
-        attempt.status == DmStatus.pending_approval
-        or (attempt.status == DmStatus.failed and attempt.retryable)
-    ):
-        raise OutreachError(
-            409, f"The DM cannot be sent: its status is {attempt.status.value}."
-        )
+    if not (attempt.status == DmStatus.pending_approval or (attempt.status == DmStatus.failed and attempt.retryable)):
+        raise OutreachError(409, f"The DM cannot be sent: its status is {attempt.status.value}.")
+    if product_id is not None:
+        message = session.get(Message, attempt.message_id)
+        classification = session.get(MessageClassification, attempt.message_id)
+        assert message is not None
+        if classification is None:
+            raise OutreachError(409, "The comment is not classified.")
+        if text or writer is None:
+            if _usable(session, product_id, attempt.account_id) is None:
+                raise OutreachError(400, "This product is not an active product of the account.")
+            attempt.product_id = product_id
+        else:
+            draft = await draft_for(session, message, classification, writer, product_id)
+            attempt.text, attempt.writer = draft.text, draft.writer
+            attempt.tracked_link_code, attempt.product_id = draft.tracked_link_code, draft.product_id
     if text:
         attempt.text = text.strip()
         attempt.writer = "human"
     if not attempt.text:
         raise OutreachError(400, "The DM has no text. Send a text in the request.")
-    return await _send(session, attempt, zernio)
+    return await _send(session, attempt, zernio, writer)
 
 
 def reject(session: Session, attempt_id: int) -> DmAttempt:
@@ -443,6 +486,14 @@ def list_attempts(
         query = query.where(DmAttempt.post_id == post_id)
     if status is not None:
         query = query.where(DmAttempt.status == status)
-    return list(
-        session.exec(query.order_by(col(DmAttempt.created_at).desc()).limit(limit))
-    )
+    return list(session.exec(query.order_by(col(DmAttempt.created_at).desc()).limit(limit)))
+
+
+async def send_public_reply(session: Session, attempt_id: int, writer: DmWriter, zernio: ZernioClient) -> DmAttempt:
+    """Manual send or retry of the public reply of a sent DM (F16)."""
+    attempt = _get_attempt(session, attempt_id)
+    if attempt.status != DmStatus.sent:
+        raise OutreachError(409, "Reply in public only after a sent DM.")
+    if attempt.public_reply_status == PublicReplyStatus.sent:
+        raise OutreachError(409, "The public reply is already sent.")
+    return await post_public_reply(session, attempt, writer, zernio, force=True)

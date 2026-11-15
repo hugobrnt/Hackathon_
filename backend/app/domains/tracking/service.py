@@ -12,7 +12,8 @@ from app.domains.accounts.models import utc_now
 from app.domains.content.models import Message, Post
 from app.domains.outreach.models import DmAttempt, DmStatus
 from app.domains.tracking.models import LinkClick, TrackedLink
-from app.domains.tracking.schemas import PostClickStats, TrackedLinkRead, TrackingStats
+from app.domains.products.models import Product
+from app.domains.tracking.schemas import PostClickStats, ProductClickStats, TrackedLinkRead, TrackingStats
 
 REDIRECT_PATH = "/r"
 UTM_MEDIUM = "dm"
@@ -71,7 +72,9 @@ def _new_code(session: Session) -> str:
             return code
 
 
-def link_for_comment(session: Session, message: Message, post: Post, landing_url: str, intent: str) -> TrackedLink:
+def link_for_comment(
+    session: Session, message: Message, post: Post, landing_url: str, intent: str, product_id: int | None = None
+) -> TrackedLink:
     """Get or create the tracked link of a comment. The destination follows the current landing URL."""
     destination = with_utm(landing_url, source=post.platform, content=f"post_{post.external_id}", term=intent)
     assert message.id is not None and post.id is not None
@@ -88,6 +91,7 @@ def link_for_comment(session: Session, message: Message, post: Post, landing_url
         )
     link.destination_url = destination
     link.intent = intent
+    link.product_id = product_id
     session.add(link)
     session.commit()
     session.refresh(link)
@@ -132,38 +136,58 @@ def _ratio(value: int, total: int) -> float:
     return round(value / total, 4) if total else 0.0
 
 
+def _group(rows: list[tuple[int | None, int]]) -> tuple[int, int, int]:
+    sent = len(rows)
+    clicked = sum(1 for _, c in rows if c)
+    clicks = sum(c for _, c in rows)
+    return sent, clicked, clicks
+
+
 def stats(session: Session, account_id: str | None = None) -> TrackingStats:
-    """Click-through rate of the sent DMs, in total and per post."""
+    """Click-through rate of the sent DMs: in total, per post and per product."""
     query = (
-        select(DmAttempt.post_id, TrackedLink.click_count)
+        select(DmAttempt.post_id, DmAttempt.product_id, TrackedLink.click_count)
         .join(TrackedLink, col(TrackedLink.message_id) == col(DmAttempt.message_id), isouter=True)
         .where(DmAttempt.status == DmStatus.sent)
     )
     if account_id:
         query = query.where(DmAttempt.account_id == account_id)
-    sent: dict[int, int] = defaultdict(int)
-    clicked: dict[int, int] = defaultdict(int)
-    clicks: dict[int, int] = defaultdict(int)
-    for post_id, click_count in session.exec(query):
-        sent[post_id] += 1
-        if click_count:
-            clicked[post_id] += 1
-            clicks[post_id] += click_count
-    posts = [
-        PostClickStats(
-            post_id=post_id,
-            dms_sent=sent[post_id],
-            links_clicked=clicked[post_id],
-            clicks=clicks[post_id],
-            click_through_rate=_ratio(clicked[post_id], sent[post_id]),
+    by_post: dict[int, list[tuple[int | None, int]]] = defaultdict(list)
+    by_product: dict[int | None, list[tuple[int | None, int]]] = defaultdict(list)
+    for post_id, product_id, click_count in session.exec(query):
+        by_post[post_id].append((product_id, click_count or 0))
+        by_product[product_id].append((product_id, click_count or 0))
+
+    posts = []
+    for post_id, rows in by_post.items():
+        sent, clicked, clicks = _group(rows)
+        posts.append(
+            PostClickStats(
+                post_id=post_id, dms_sent=sent, links_clicked=clicked, clicks=clicks,
+                click_through_rate=_ratio(clicked, sent),
+            )
         )
-        for post_id in sorted(sent, key=lambda p: (-_ratio(clicked[p], sent[p]), -sent[p]))
-    ]
-    total_sent, total_clicked = sum(sent.values()), sum(clicked.values())
+    posts.sort(key=lambda p: (-p.click_through_rate, -p.dms_sent))
+
+    products = []
+    for product_id, rows in by_product.items():
+        sent, clicked, clicks = _group(rows)
+        product = session.get(Product, product_id) if product_id is not None else None
+        products.append(
+            ProductClickStats(
+                product_id=product_id, product_title=product.title if product else None, dms_sent=sent,
+                links_clicked=clicked, clicks=clicks, click_through_rate=_ratio(clicked, sent),
+            )
+        )
+    products.sort(key=lambda p: (-p.click_through_rate, -p.dms_sent))
+
+    total_sent = sum(p.dms_sent for p in posts)
+    total_clicked = sum(p.links_clicked for p in posts)
     return TrackingStats(
         dms_sent=total_sent,
         links_clicked=total_clicked,
-        clicks=sum(clicks.values()),
+        clicks=sum(p.clicks for p in posts),
         click_through_rate=_ratio(total_clicked, total_sent),
         posts=posts,
+        products=products,
     )
