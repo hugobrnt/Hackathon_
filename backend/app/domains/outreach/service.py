@@ -29,9 +29,14 @@ from app.domains.outreach.schemas import (
 )
 from app.domains.outreach.writers import DmWriter
 from app.domains.products.models import Product
+from app.domains.replies.models import ReplySettings
 from app.domains.tracking import service as tracking
 from app.domains.tracking.models import TrackedLink
-from app.integrations.zernio.client import ZernioClient, ZernioClientFactory, ZernioError
+from app.integrations.zernio.client import (
+    ZernioClient,
+    ZernioClientFactory,
+    ZernioError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -52,8 +57,14 @@ def _as_utc(value: datetime | None) -> datetime | None:
 def to_read(attempt: DmAttempt, session: Session | None = None) -> DmAttemptRead:
     item = DmAttemptRead.model_validate(attempt)
     if attempt.tracked_link_code:
-        item.tracked_url = tracking.short_url(attempt.tracked_link_code)  # Click counter URL.
-        link = session.get(TrackedLink, attempt.tracked_link_code) if session is not None else None
+        item.tracked_url = tracking.short_url(
+            attempt.tracked_link_code
+        )  # Click counter URL.
+        link = (
+            session.get(TrackedLink, attempt.tracked_link_code)
+            if session is not None
+            else None
+        )
         item.link_clicks = link.click_count if link is not None else 0
     sent, comment = _as_utc(attempt.sent_at), _as_utc(attempt.comment_time)
     if sent and comment:
@@ -86,10 +97,16 @@ def product_for(session: Session, post: Post) -> Product | None:
 
 def landing_url_for(product: Product, rule: PostAutoDm | None) -> str:
     """The post override first, then the landing URL of the product."""
-    return rule.landing_url if rule is not None and rule.landing_url else product.landing_url
+    return (
+        rule.landing_url
+        if rule is not None and rule.landing_url
+        else product.landing_url
+    )
 
 
-def set_post_settings(session: Session, post_id: int, update: AutoDmSettingsUpdate) -> PostAutoDm:
+def set_post_settings(
+    session: Session, post_id: int, update: AutoDmSettingsUpdate
+) -> PostAutoDm:
     row = get_post_settings(session, post_id)
     post = session.get(Post, post_id)
     assert post is not None
@@ -108,7 +125,9 @@ def set_post_settings(session: Session, post_id: int, update: AutoDmSettingsUpda
 # Decision
 
 
-def _already_contacted(session: Session, post_id: int, recipient_id: str, message_id: int) -> bool:
+def _already_contacted(
+    session: Session, post_id: int, recipient_id: str, message_id: int
+) -> bool:
     query = select(DmAttempt.id).where(
         DmAttempt.post_id == post_id,
         DmAttempt.recipient_id == recipient_id,
@@ -129,24 +148,49 @@ def _decide(
         return DmStatus.skipped, "The comment has no author id."
     created = _as_utc(message.created_time)
     if created and utc_now() - created > timedelta(days=settings.auto_dm_max_age_days):
-        return DmStatus.skipped, f"The comment is older than {settings.auto_dm_max_age_days} days (Meta limit)."
+        return (
+            DmStatus.skipped,
+            f"The comment is older than {settings.auto_dm_max_age_days} days (Meta limit).",
+        )
     assert message.post_id is not None and message.id is not None
     post = session.get(Post, message.post_id)
     if post is None or product_for(session, post) is None:
-        return DmStatus.skipped, "No product (landing URL and description) for this account."
+        return (
+            DmStatus.skipped,
+            "No product (landing URL and description) for this account.",
+        )
     if _already_contacted(session, message.post_id, message.author_id, message.id):
         return DmStatus.skipped, "This person already has a DM for this post."
+    preferences = session.get(ReplySettings, message.account_id)
+    if preferences and any(
+        term.strip().casefold() in message.text.casefold()
+        for term in preferences.escalation_topics.split(",")
+        if term.strip()
+    ):
+        return (
+            DmStatus.pending_approval,
+            "This topic is assigned to a human in reply settings.",
+        )
     if rule.require_approval:
         return DmStatus.pending_approval, "Validation mode is on for this post."
     if classification.sentiment == Sentiment.negative:
-        return DmStatus.pending_approval, "Negative comment: a human must approve the DM."
+        return (
+            DmStatus.pending_approval,
+            "Negative comment: a human must approve the DM.",
+        )
     if classification.needs_review:
-        return DmStatus.pending_approval, "Uncertain classification: a human must approve the DM."
+        return (
+            DmStatus.pending_approval,
+            "Uncertain classification: a human must approve the DM.",
+        )
     return DmStatus.sending, None
 
 
 async def draft_for(
-    session: Session, message: Message, classification: MessageClassification, writer: DmWriter
+    session: Session,
+    message: Message,
+    classification: MessageClassification,
+    writer: DmWriter,
 ) -> DmDraft:
     post = session.get(Post, message.post_id) if message.post_id is not None else None
     if post is None:
@@ -157,9 +201,14 @@ async def draft_for(
     rule = session.get(PostAutoDm, post.id)
     # F8: the DM contains a short tracked link, which redirects to the landing URL with UTM parameters.
     link = tracking.link_for_comment(
-        session, message, post, landing_url_for(product, rule), classification.intent.value
+        session,
+        message,
+        post,
+        landing_url_for(product, rule),
+        classification.intent.value,
     )
     url = tracking.dm_url(link)
+    preferences = session.get(ReplySettings, message.account_id)
     draft = await writer.write(
         DmDraftInput(
             comment=message.text,
@@ -170,6 +219,8 @@ async def draft_for(
             business_type=product.business_type,
             product_name=product.name,
             product_description=product.description,
+            reply_tone=preferences.tone if preferences else "friendly",
+            reply_goal=preferences.goal if preferences else "product_visit",
         )
     )
     return draft.model_copy(update={"tracked_link_code": link.code, "tracked_url": url})
@@ -178,7 +229,9 @@ async def draft_for(
 # Sending
 
 
-async def _send(session: Session, attempt: DmAttempt, zernio: ZernioClient) -> DmAttempt:
+async def _send(
+    session: Session, attempt: DmAttempt, zernio: ZernioClient
+) -> DmAttempt:
     message = session.get(Message, attempt.message_id)
     post = session.get(Post, attempt.post_id)
     assert message is not None and post is not None
@@ -186,7 +239,9 @@ async def _send(session: Session, attempt: DmAttempt, zernio: ZernioClient) -> D
     session.add(attempt)
     session.commit()
     try:
-        result = await zernio.send_private_reply(post.external_id, message.external_id, attempt.account_id, attempt.text)
+        result = await zernio.send_private_reply(
+            post.external_id, message.external_id, attempt.account_id, attempt.text
+        )
     except ZernioError as exc:
         attempt.status = DmStatus.failed
         outcome = exc.details.get("privateReplyOutcome")
@@ -224,7 +279,9 @@ async def process_message(
         or message.post_id is None
     ):
         return None
-    existing = session.exec(select(DmAttempt).where(DmAttempt.message_id == message_id)).first()
+    existing = session.exec(
+        select(DmAttempt).where(DmAttempt.message_id == message_id)
+    ).first()
     if existing is not None:
         return existing
     classification = session.get(MessageClassification, message_id)
@@ -256,7 +313,9 @@ async def process_message(
     except IntegrityError:
         # Another task created the attempt of this comment first.
         session.rollback()
-        return session.exec(select(DmAttempt).where(DmAttempt.message_id == message_id)).first()
+        return session.exec(
+            select(DmAttempt).where(DmAttempt.message_id == message_id)
+        ).first()
     session.refresh(attempt)
     if status == DmStatus.sending:
         return await _send(session, attempt, zernio)
@@ -284,15 +343,23 @@ async def run_for_messages(
     return result
 
 
-async def run_for_post(session: Session, post_id: int, writer: DmWriter, zernio: ZernioClient) -> AutoDmRunResult:
+async def run_for_post(
+    session: Session, post_id: int, writer: DmWriter, zernio: ZernioClient
+) -> AutoDmRunResult:
     """Manual run: DM the eligible comments of a post without attempt (if the webhooks failed)."""
     rule = get_post_settings(session, post_id)
     if not rule.enabled:
-        raise OutreachError(400, "Auto-DM is off for this post. Enable it with PUT /posts/{post_id}/auto-dm.")
+        raise OutreachError(
+            400,
+            "Auto-DM is off for this post. Enable it with PUT /posts/{post_id}/auto-dm.",
+        )
     done = select(DmAttempt.message_id)
     query = (
         select(Message.id)
-        .join(MessageClassification, col(MessageClassification.message_id) == col(Message.id))
+        .join(
+            MessageClassification,
+            col(MessageClassification.message_id) == col(Message.id),
+        )
         .where(
             Message.post_id == post_id,
             col(MessageClassification.intent).in_(list(DM_INTENTS)),
@@ -305,7 +372,10 @@ async def run_for_post(session: Session, post_id: int, writer: DmWriter, zernio:
 
 
 async def auto_dm_in_background(
-    engine: Engine, writer: DmWriter, zernio_factory: ZernioClientFactory, message_ids: Sequence[int]
+    engine: Engine,
+    writer: DmWriter,
+    zernio_factory: ZernioClientFactory,
+    message_ids: Sequence[int],
 ) -> None:
     """Background task after the classification of new comments (webhook path)."""
     if not message_ids:
@@ -327,10 +397,17 @@ def _get_attempt(session: Session, attempt_id: int) -> DmAttempt:
     return attempt
 
 
-async def approve(session: Session, attempt_id: int, text: str | None, zernio: ZernioClient) -> DmAttempt:
+async def approve(
+    session: Session, attempt_id: int, text: str | None, zernio: ZernioClient
+) -> DmAttempt:
     attempt = _get_attempt(session, attempt_id)
-    if not (attempt.status == DmStatus.pending_approval or (attempt.status == DmStatus.failed and attempt.retryable)):
-        raise OutreachError(409, f"The DM cannot be sent: its status is {attempt.status.value}.")
+    if not (
+        attempt.status == DmStatus.pending_approval
+        or (attempt.status == DmStatus.failed and attempt.retryable)
+    ):
+        raise OutreachError(
+            409, f"The DM cannot be sent: its status is {attempt.status.value}."
+        )
     if text:
         attempt.text = text.strip()
         attempt.writer = "human"
@@ -342,7 +419,9 @@ async def approve(session: Session, attempt_id: int, text: str | None, zernio: Z
 def reject(session: Session, attempt_id: int) -> DmAttempt:
     attempt = _get_attempt(session, attempt_id)
     if attempt.status != DmStatus.pending_approval:
-        raise OutreachError(409, f"Only a pending DM can be rejected (status: {attempt.status.value}).")
+        raise OutreachError(
+            409, f"Only a pending DM can be rejected (status: {attempt.status.value})."
+        )
     attempt.status = DmStatus.rejected
     session.add(attempt)
     session.commit()
@@ -364,4 +443,6 @@ def list_attempts(
         query = query.where(DmAttempt.post_id == post_id)
     if status is not None:
         query = query.where(DmAttempt.status == status)
-    return list(session.exec(query.order_by(col(DmAttempt.created_at).desc()).limit(limit)))
+    return list(
+        session.exec(query.order_by(col(DmAttempt.created_at).desc()).limit(limit))
+    )

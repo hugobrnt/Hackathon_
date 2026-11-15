@@ -14,6 +14,7 @@ from app.domains.insights.grouping import HeuristicGrouper, get_theme_grouper
 from app.domains.outreach.writers import TemplateDmWriter, get_dm_writer
 from app.integrations.zernio.client import ZernioClient, get_zernio_client, get_zernio_client_factory
 from app.main import create_app
+from app.domains.auth.router import require_session
 
 BASE_URL = "https://zernio.test/api/v1"
 
@@ -66,6 +67,7 @@ def zernio_mock() -> Iterator[respx.MockRouter]:
 @pytest.fixture
 def client(engine: Engine, settings: Settings, zernio_mock: respx.MockRouter) -> Iterator[TestClient]:
     app = create_app()
+    app.dependency_overrides[require_session] = lambda: None
 
     def override_session() -> Iterator[Session]:
         with Session(engine) as s:

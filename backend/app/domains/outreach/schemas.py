@@ -14,7 +14,9 @@ class AutoDmSettingsUpdate(BaseModel):
         description="Optional page for this post only. Default: the landing URL of the account product (F7 bis). "
         "The product (URL + description) stays required.",
     )
-    require_approval: bool = Field(default=False, description="F17: all DMs wait for a human approval.")
+    require_approval: bool = Field(
+        default=False, description="F17: all DMs wait for a human approval."
+    )
 
 
 class AutoDmSettingsRead(BaseModel):
@@ -36,6 +38,8 @@ class DmDraftInput(BaseModel):
     business_type: BusinessType
     product_name: str
     product_description: str
+    reply_tone: str = "friendly"
+    reply_goal: str = "product_visit"
 
 
 class DmDraft(BaseModel):
@@ -65,20 +69,26 @@ class DmAttemptRead(BaseModel):
     zernio_message_id: str | None
     tracked_link_code: str | None = None
     tracked_url: str | None = Field(
-        default=None, description="Short tracked link of this DM (F8). Each visit is counted as a click."
+        default=None,
+        description="Short tracked link of this DM (F8). Each visit is counted as a click.",
     )
-    link_clicks: int = Field(default=0, description="Human clicks on the link of this DM.")
+    link_clicks: int = Field(
+        default=0, description="Human clicks on the link of this DM."
+    )
     retryable: bool
     comment_time: datetime | None
     created_at: datetime
     sent_at: datetime | None
     latency_seconds: float | None = Field(
-        default=None, description="Time between the comment and the DM (PRD target: < 60 s)."
+        default=None,
+        description="Time between the comment and the DM (PRD target: < 60 s).",
     )
 
 
 class ApproveRequest(BaseModel):
-    text: str | None = Field(default=None, max_length=1000, description="Optional edited text of the DM.")
+    text: str | None = Field(
+        default=None, max_length=1000, description="Optional edited text of the DM."
+    )
 
 
 class AutoDmRunResult(BaseModel):

@@ -5,17 +5,25 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class SupportedPlatform(StrEnum):
-    """Platforms that the product supports. The PRD limits the demo to Instagram."""
+    """Social platforms with the hosted Zernio OAuth flow."""
 
     instagram = "instagram"
     facebook = "facebook"
     linkedin = "linkedin"
     twitter = "twitter"
     tiktok = "tiktok"
+    youtube = "youtube"
+    pinterest = "pinterest"
+    reddit = "reddit"
+    threads = "threads"
+    googlebusiness = "googlebusiness"
+    snapchat = "snapchat"
 
 
 class ConnectUrlResponse(BaseModel):
-    auth_url: str = Field(description="Zernio OAuth URL. Open it in a browser to connect the account.")
+    auth_url: str = Field(
+        description="Zernio OAuth URL. Open it in a browser to connect the account."
+    )
 
 
 class SocialAccountRead(BaseModel):

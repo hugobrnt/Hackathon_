@@ -41,7 +41,8 @@ If the answer is not in the facts, say that the landing page has the details. Th
 security) if it exists, then give the link. Never argue.
 - Never talk about delivery, sizes or orders: it is software.
 
-""" + COMMON_RULES,
+"""
+    + COMMON_RULES,
     BusinessType.ecommerce: """You write the first private message (Instagram DM) that an online shop sends to a \
 person who commented on its post. Goal: help the person and bring them to the product page to order.
 
@@ -55,7 +56,8 @@ exist. If the answer is not in the facts, say that the page has the details. The
 - objection: acknowledge the concern with empathy, answer with one relevant fact (quality, price, returns, \
 guarantee) if it exists, then give the link. Never argue.
 
-""" + COMMON_RULES,
+"""
+    + COMMON_RULES,
 }
 
 DM_SCHEMA: dict[str, Any] = {
@@ -87,7 +89,28 @@ def template_draft(item: DmDraftInput) -> DmDraft:
     templates = TEMPLATES[item.business_type]
     template = templates.get(item.intent, templates[Intent.pre_purchase_question])
     hello = f"Hello {item.author_name} !" if item.author_name else "Hello !"
-    text = template.format(hello=hello, product=item.product_name, link=item.landing_url)
+    text = template.format(
+        hello=hello, product=item.product_name, link=item.landing_url
+    )
+    if item.reply_tone == "professional":
+        text = (
+            text.replace("Hello", "Bonjour")
+            .replace("ton ", "votre ")
+            .replace("ta ", "votre ")
+            .replace("Tu peux", "Vous pouvez")
+            .replace("Tu trouveras", "Vous trouverez")
+            .replace("🙌", "")
+            .replace(" !", ".")
+        )
+    elif item.reply_tone == "concise":
+        text = f"{item.product_name} : {item.landing_url}"
+    if item.reply_goal in {"trial", "demo"}:
+        action = (
+            "les possibilités d’essai"
+            if item.reply_goal == "trial"
+            else "les possibilités de démonstration"
+        )
+        text = f"{text} Consultez la page pour {action}."
     return DmDraft(text=text, writer="template")
 
 
@@ -97,7 +120,9 @@ class TemplateDmWriter:
 
 
 class WorkersAIDmWriter:
-    def __init__(self, settings: Settings, client: WorkersAIClient | None = None) -> None:
+    def __init__(
+        self, settings: Settings, client: WorkersAIClient | None = None
+    ) -> None:
         self._settings = settings
         self._client = client or WorkersAIClient(settings)
 
@@ -112,11 +137,32 @@ class WorkersAIDmWriter:
             f"Post caption: {item.post_caption.strip()[:600] or 'unknown'}\n"
             f"Link: {item.landing_url}"
         )
-        system = SYSTEM_PROMPTS[item.business_type]
-        messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
+        tone = {
+            "friendly": "Friendly, warm and brief.",
+            "professional": "Professional, respectful, no emoji. Use vous in French.",
+            "concise": "One or two concise sentences, no emoji.",
+        }.get(item.reply_tone, "Friendly and brief.")
+        goal = {
+            "trial": "Guide toward a trial only if the product facts offer one.",
+            "demo": "Guide toward a demo only if the product facts offer one.",
+            "product_visit": "Guide toward learning about the product on its page.",
+        }.get(item.reply_goal, "Help the person understand the product.")
+        system = (
+            SYSTEM_PROMPTS[item.business_type]
+            + "\nReply style override: "
+            + tone
+            + "\nGoal: "
+            + goal
+        )
+        messages = [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ]
         model = self._settings.classifier_large_model
         try:
-            raw = await self._client.run_json(model, messages, DM_SCHEMA, max_tokens=300)
+            raw = await self._client.run_json(
+                model, messages, DM_SCHEMA, max_tokens=300
+            )
             text = str(raw.get("message", "")).strip()
         except WorkersAIError as exc:
             logger.warning("DM generation failed: %s", exc)
