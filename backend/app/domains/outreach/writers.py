@@ -8,6 +8,7 @@ from app.core.config import Settings, get_settings
 from app.domains.classification.taxonomy import Intent
 from app.domains.outreach.schemas import DmDraft, DmDraftInput, PublicReplyInput
 from app.domains.products.models import BusinessType
+from app.domains.replies.policy import reply_instructions
 from app.integrations.cloudflare.workers_ai import WorkersAIClient, WorkersAIError
 
 logger = logging.getLogger(__name__)
@@ -15,7 +16,7 @@ logger = logging.getLogger(__name__)
 MAX_DM_LENGTH = 600
 
 COMMON_RULES = """Rules:
-- Write in the language of the comment (French by default). Use "tu" in French.
+- Write in the language of the comment (French by default). Follow the configured reply style.
 - 2 or 3 short sentences, at most 350 characters. Friendly and human, no hard selling, at most 1 emoji.
 - Start with the username of the person if it is given.
 - Use ONLY facts from the product description and the post caption. Never invent a price, a feature, \
@@ -145,23 +146,7 @@ class WorkersAIDmWriter:
             f"Post caption: {item.post_caption.strip()[:600] or 'unknown'}\n"
             f"Link: {item.landing_url}"
         )
-        tone = {
-            "friendly": "Friendly, warm and brief.",
-            "professional": "Professional, respectful, no emoji. Use vous in French.",
-            "concise": "One or two concise sentences, no emoji.",
-        }.get(item.reply_tone, "Friendly and brief.")
-        goal = {
-            "trial": "Guide toward a trial only if the product facts offer one.",
-            "demo": "Guide toward a demo only if the product facts offer one.",
-            "product_visit": "Guide toward learning about the product on its page.",
-        }.get(item.reply_goal, "Help the person understand the product.")
-        system = (
-            SYSTEM_PROMPTS[item.business_type]
-            + "\nReply style override: "
-            + tone
-            + "\nGoal: "
-            + goal
-        )
+        system = SYSTEM_PROMPTS[item.business_type] + "\n" + reply_instructions(item.reply_tone, item.reply_goal)
         messages = [
             {"role": "system", "content": system},
             {"role": "user", "content": user},

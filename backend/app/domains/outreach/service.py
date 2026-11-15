@@ -31,6 +31,7 @@ from app.domains.outreach.public_reply import post_public_reply
 from app.domains.outreach.writers import DmWriter
 from app.domains.products.models import Product
 from app.domains.replies.models import ReplySettings
+from app.domains.replies.policy import requires_human
 from app.domains.products.service import active_catalog
 from app.domains.conversations import service as conversations
 from app.domains.tracking import service as tracking
@@ -104,12 +105,12 @@ def product_for_message(
     session: Session, message: Message, classification: MessageClassification | None, rule: PostAutoDm | None
 ) -> Product | None:
     """F7 ter: the product found for the comment, else the product forced on the post, else the only product."""
-    found = _usable(session, classification.product_id if classification else None, message.account_id)
-    if found is not None:
-        return found
     forced = _usable(session, rule.product_id if rule else None, message.account_id)
     if forced is not None:
         return forced
+    found = _usable(session, classification.product_id if classification else None, message.account_id)
+    if found is not None:
+        return found
     catalog = active_catalog(session, message.account_id)
     return catalog[0] if len(catalog) == 1 else None
 
@@ -171,11 +172,7 @@ def _decide(
     if _already_contacted(session, message.post_id, message.author_id, message.id):
         return DmStatus.skipped, "This person already has a DM for this post."
     preferences = session.get(ReplySettings, message.account_id)
-    if preferences and any(
-        term.strip().casefold() in message.text.casefold()
-        for term in preferences.escalation_topics.split(",")
-        if term.strip()
-    ):
+    if preferences and requires_human(message.text, preferences.escalation_topics):
         return (
             DmStatus.pending_approval,
             "This topic is assigned to a human in reply settings.",
@@ -191,6 +188,13 @@ def _decide(
         return DmStatus.pending_approval, "Uncertain classification: a human must approve the DM."
     if product_for_message(session, message, classification, rule) is None:
         return DmStatus.pending_approval, PRODUCT_UNKNOWN
+    if (
+        classification.product_id is not None
+        and (classification.product_confidence is None or classification.product_confidence < 0.7)
+        and rule.product_id is None
+        and len(active_catalog(session, message.account_id)) > 1
+    ):
+        return DmStatus.pending_approval, "Uncertain product match: confirm the product before sending."
     return DmStatus.sending, None
 
 
@@ -231,7 +235,7 @@ async def draft_for(
             business_type=product.business_type,
             product_name=product.title,
             product_description=product.description,
-            reply_tone=preferences.tone if preferences else "friendly",
+            reply_tone=preferences.tone if preferences else "professional",
             reply_goal=preferences.goal if preferences else "product_visit",
         )
     )
@@ -447,10 +451,17 @@ async def approve(
             if _usable(session, product_id, attempt.account_id) is None:
                 raise OutreachError(400, "This product is not an active product of the account.")
             attempt.product_id = product_id
+            product = _usable(session, product_id, attempt.account_id)
+            post = session.get(Post, attempt.post_id)
+            assert product is not None and post is not None
+            link = tracking.link_for_comment(session, message, post, product.landing_url, classification.intent.value, product.id)
+            attempt.tracked_link_code = link.code
         else:
             draft = await draft_for(session, message, classification, writer, product_id)
             attempt.text, attempt.writer = draft.text, draft.writer
             attempt.tracked_link_code, attempt.product_id = draft.tracked_link_code, draft.product_id
+    if _usable(session, attempt.product_id, attempt.account_id) is None:
+        raise OutreachError(400, "Choose an active product before approving this DM.")
     if text:
         attempt.text = text.strip()
         attempt.writer = "human"

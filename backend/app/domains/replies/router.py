@@ -14,12 +14,12 @@ SessionDep = Annotated[Session, Depends(get_session)]
 
 
 class ReplySettingsInput(BaseModel):
-    tone: Literal["friendly", "professional", "concise"] = "friendly"
+    tone: Literal["friendly", "professional", "concise"] = "professional"
     goal: Literal["product_visit", "trial", "demo"] = "product_visit"
     escalation_topics: str = Field(
         default="",
         max_length=1000,
-        description="Comma-separated terms that require human approval, matched case-insensitively in the incoming comment.",
+        description="Comma-separated terms that require human approval, matched case-insensitively in the incoming comment or DM.",
     )
 
 

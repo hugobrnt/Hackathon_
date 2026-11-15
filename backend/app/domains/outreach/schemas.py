@@ -41,7 +41,7 @@ class DmDraftInput(BaseModel):
     business_type: BusinessType
     product_name: str
     product_description: str
-    reply_tone: str = "friendly"
+    reply_tone: str = "professional"
     reply_goal: str = "product_visit"
 
 

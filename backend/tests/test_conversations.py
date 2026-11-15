@@ -125,3 +125,22 @@ def test_unknown_dm_is_ignored_and_404(client: TestClient, session: Session, zer
     send(client, dm_event("e1", "Hello", mid="mid.x", sender="someone"))
     assert client.get("/conversations").json() == []
     assert client.get("/conversations/999").status_code == 404
+
+
+def test_reply_preferences_control_followups(client: TestClient, session: Session, zernio_mock: respx.MockRouter) -> None:
+    agent = ScriptedAgent()
+    use_agent(client, agent)
+    conversation_id = start(client, session, zernio_mock)
+    assert client.put("/accounts/acc-1/reply-settings", json={
+        "tone": "professional", "goal": "demo", "escalation_topics": "refund, privacy",
+    }).status_code == 200
+    route = zernio_mock.post("/inbox/conversations/conv-1/messages").respond(json={"data": {"messageId": "followup"}})
+    send(client, dm_event("prefs-1", "Comment choisir la taille ?", mid="prefs-1"))
+    assert route.call_count == 1
+    assert agent.inputs[0].reply_tone == "professional"
+    assert agent.inputs[0].reply_goal == "demo"
+    send(client, dm_event("prefs-2", "Tell me about PRIVACY", mid="prefs-2"))
+    assert len(agent.inputs) == 1 and route.call_count == 1
+    result = client.get(f"/conversations/{conversation_id}").json()
+    assert result["status"] == "handed_off"
+    assert "configured topic" in result["handoff_reason"]

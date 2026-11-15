@@ -110,6 +110,7 @@ def test_dm_goes_to_the_product_of_the_comment(
     row = session.get(MessageClassification, message_id)
     assert row is not None
     row.product_id = zip_id
+    row.product_confidence = 0.95
     session.add(row)
     session.commit()
     reply = mock_reply(zernio_mock)
@@ -158,3 +159,37 @@ def test_demo_has_a_catalog(client: TestClient) -> None:
     assert len(titles) == 3 and "Hoodie zippé" in titles
     client.post("/demo/load")
     assert len(client.get("/accounts/demo-instagram/products").json()) == 3  # Idempotent.
+
+
+def test_low_confidence_product_requires_review(client: TestClient, session: Session, zernio_mock: respx.MockRouter) -> None:
+    post_id = setup_post(session)
+    add_product(client)
+    product_id = add_product(client, **ZIP)
+    message_id = add_comment(session, post_id, "c1", "buyer", Intent.purchase_intent)
+    row = session.get(MessageClassification, message_id)
+    assert row is not None
+    row.product_id, row.product_confidence = product_id, 0.5
+    session.add(row)
+    session.commit()
+    reply = mock_reply(zernio_mock)
+    client.put(f"/posts/{post_id}/auto-dm", json={"enabled": True})
+    attempt = client.post(f"/posts/{post_id}/auto-dm/run").json()["attempts"][0]
+    assert attempt["status"] == "pending_approval"
+    assert "Uncertain product" in attempt["reason"]
+    assert not reply.called
+
+
+def test_human_product_preview_and_edited_reply_keep_destination(client: TestClient, session: Session, zernio_mock: respx.MockRouter) -> None:
+    post_id = setup_post(session)
+    add_product(client)
+    product_id = add_product(client, **ZIP)
+    message_id = add_comment(session, post_id, "c1", "buyer", Intent.purchase_intent)
+    mock_reply(zernio_mock)
+    client.put(f"/posts/{post_id}/auto-dm", json={"enabled": True})
+    attempt = client.post(f"/posts/{post_id}/auto-dm/run").json()["attempts"][0]
+    assert client.post(f"/auto-dm/attempts/{attempt['id']}/approve", json={"text":"Wrongly unassigned reply"}).status_code == 400
+    draft = client.post(f"/messages/{message_id}/auto-dm/preview?product_id={product_id}").json()
+    response = client.post(f"/auto-dm/attempts/{attempt['id']}/approve", json={"product_id":product_id,"text":draft["text"]})
+    assert response.status_code == 200
+    assert response.json()["tracked_link_code"] == draft["tracked_link_code"]
+    assert client.get("/tracking/links").json()[0]["destination_url"].startswith("https://shop.test/zip")
