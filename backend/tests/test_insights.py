@@ -85,3 +85,50 @@ async def test_llm_grouping_is_cleaned(settings: Settings) -> None:
         result = await WorkersAIGrouper(s).group(InsightCategory.objections, items)
     assert "[2] Hors de prix" in json.loads(route.calls.last.request.content)["messages"][1]["content"]
     assert [(t.title, t.indexes) for t in result.themes] == [("Prix trop élevé", [1, 2]), ("Confiance", [3])]
+
+
+def test_product_scopes_are_saved_separately(client: TestClient, session: Session) -> None:
+    from sqlmodel import select
+    from app.domains.classification.models import MessageClassification
+    from tests.test_outreach import add_product
+    post_id = seed(session)
+    first = add_product(client)
+    second = add_product(client, title="Shoes", landing_url="https://shop.test/shoes")
+    classifications = list(session.exec(select(MessageClassification).order_by(MessageClassification.message_id)))
+    for i, item in enumerate(classifications):
+        item.product_id = first if i < 2 else second
+        item.product_confidence = 0.95 if i != 1 else 0.4
+        session.add(item)
+    session.commit()
+    reports = {}
+    for scope in [None, first, second, 0]:
+        response = client.post("/insights/run", json={"account_id": "acc-1", "product_id": scope})
+        assert response.status_code == 200, response.text
+        reports[scope] = response.json()
+    for scope, expected in reports.items():
+        params = {"account_id": "acc-1", **({"product_id": scope} if scope is not None else {})}
+        saved = client.get("/insights", params=params).json()
+        assert saved["run_id"] == expected["run_id"]
+        assert saved["product_id"] == scope
+        ids = {i for category in saved["categories"] for theme in category["themes"] for i in theme["message_ids"]}
+        expected_ids = {item.message_id for item in classifications if scope is None or (
+            (item.product_confidence or 0) < 0.7 if scope == 0 else
+            item.product_id == scope and (item.product_confidence or 0) >= 0.7
+        )}
+        assert ids == expected_ids
+    # Combining post and product filters cannot recover another scope's report.
+    assert client.get("/insights", params={"account_id": "acc-1", "post_id": post_id, "product_id": first}).status_code == 404
+    assert client.post("/insights/run", json={"account_id": "acc-1", "product_id": 99999}).status_code == 404
+
+
+def test_empty_product_report_survives_reload(client: TestClient, session: Session) -> None:
+    from tests.test_outreach import add_product
+    seed(session)
+    product = add_product(client)
+    payload = {"account_id": "acc-1", "product_id": product}
+    first = client.post("/insights/run", json=payload).json()
+    assert sum(c["total_messages"] for c in first["categories"]) == 0
+    saved = client.get("/insights", params=payload)
+    assert saved.status_code == 200
+    assert saved.json()["run_id"] == first["run_id"]
+    assert saved.json()["categories"] == first["categories"]
