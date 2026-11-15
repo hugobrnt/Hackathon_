@@ -271,10 +271,10 @@ export function PostsView({
                       <span className="rank">
                         {String(i + 1).padStart(2, "0")}
                       </span>
+                      <PlatformBadge platform={p.post.platform} />
                       <span>
-                        <span className="post-title-line">
-                          <PlatformBadge platform={p.post.platform} />
-                          <span>{p.post.caption || "Untitled post"}</span>
+                        <span className="post-title-caption">
+                          {p.post.caption || "Untitled post"}
                         </span>
                         <small>
                           {origin(p)} · {p.post.media_type ?? "Post"} ·{" "}

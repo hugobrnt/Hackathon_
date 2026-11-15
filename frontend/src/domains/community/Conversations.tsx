@@ -1,3 +1,4 @@
+import { pushNotification } from "../notifications/Notifications";
 import { catalogFor } from "../products/api";
 import type { CatalogProduct } from "../products/types";
 import "../products/products.css";
@@ -13,7 +14,6 @@ import type {
   TrackedLink,
 } from "../../api/outreach-types";
 import { outreachFor } from "../../api/outreach";
-import { simulateClick } from "../demo/outreach";
 import { Button, Empty, Heading, Metric } from "../../shared/ui";
 import { formatCount, formatDate, formatPercent } from "../../shared/format";
 import { intentLabels } from "../analytics/model";
@@ -52,13 +52,15 @@ export function Conversations({
     [loading, setLoading] = useState(true),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
-    [notice, setNotice] = useState(""),
     [revision, setRevision] = useState(0),
     [status, setStatus] = useState<DmStatus | "all">("all"),
     [postFilter, setPostFilter] = useState("all"),
     [search, setSearch] = useState(""),
     [selected, setSelected] = useState(0),
     [confirmation, setConfirmation] = useState<ActionConfirmation | null>(null);
+  const setNotice = (text: string) => {
+    if (text) pushNotification({ text });
+  };
   useEffect(() => {
     setTab(
       ["inbox", "automation", "tracking"].includes(initialTab)
@@ -193,52 +195,45 @@ export function Conversations({
           </Button>
         </div>
       )}
-      {notice && (
-        <div role="status" className="notice">
-          <span>{notice}</span>
-          <button
-            aria-label="Dismiss activity notification"
-            onClick={() => setNotice("")}
-          >
-            ×
-          </button>
+      {tab !== "automation" && (
+        <div
+          className="metrics-grid"
+          data-tour={tab === "tracking" ? "dm-tracking" : undefined}
+        >
+          <Metric
+            label="DMs sent"
+            value={stats ? formatCount(stats.dms_sent) : "—"}
+            hint="Account total · successfully sent"
+          />
+          <Metric
+            label="Links clicked"
+            value={stats ? formatCount(stats.links_clicked) : "—"}
+            hint="Sent DMs with at least one human click"
+          />
+          <Metric
+            label="DM click-through rate"
+            value={
+              stats
+                ? formatPercent(
+                    stats.dms_sent ? stats.click_through_rate : null,
+                  )
+                : "—"
+            }
+            accent
+            hint="Clicked sent DMs ÷ sent DMs"
+          />
+          <Metric
+            label="Awaiting approval"
+            value={
+              data
+                ? data.attempts.filter((a) => a.status === "pending_approval")
+                    .length
+                : "—"
+            }
+            hint="Among the latest 500 attempts"
+          />
         </div>
       )}
-      <div
-        className="metrics-grid"
-        data-tour={tab === "tracking" ? "dm-tracking" : undefined}
-      >
-        <Metric
-          label="DMs sent"
-          value={stats ? formatCount(stats.dms_sent) : "—"}
-          hint="Account total · successfully sent"
-        />
-        <Metric
-          label="Links clicked"
-          value={stats ? formatCount(stats.links_clicked) : "—"}
-          hint="Sent DMs with at least one human click"
-        />
-        <Metric
-          label="DM click-through rate"
-          value={
-            stats
-              ? formatPercent(stats.dms_sent ? stats.click_through_rate : null)
-              : "—"
-          }
-          accent
-          hint="Clicked sent DMs ÷ sent DMs"
-        />
-        <Metric
-          label="Awaiting approval"
-          value={
-            data
-              ? data.attempts.filter((a) => a.status === "pending_approval")
-                  .length
-              : "—"
-          }
-          hint="Among the latest 500 attempts"
-        />
-      </div>
       <div
         className="outreach-tabs"
         role="tablist"
@@ -560,13 +555,6 @@ export function Conversations({
                       return "DM rejected. Nothing was sent.";
                     })
                   }
-                  click={() =>
-                    void perform(async () => {
-                      simulateClick(active.id);
-                      reportTourAction("link-clicked");
-                      return "Demo click recorded. Tracking metrics updated.";
-                    })
-                  }
                 />
               </div>
             )}
@@ -601,7 +589,6 @@ function AttemptPanel({
   onOpen,
   approve,
   reject,
-  click,
 }: {
   attempt: DmAttempt;
   products: CatalogProduct[];
@@ -614,7 +601,6 @@ function AttemptPanel({
   onOpen: (id: number) => void;
   approve: (text: string, productId?: number) => void;
   reject: () => void;
-  click: () => void;
 }) {
   const [text, setText] = useState(a.text),
     [copyStatus, setCopyStatus] = useState("");
@@ -786,7 +772,7 @@ function AttemptPanel({
           </p>
         )}
       </div>
-      {(a.tracked_url || link) && (
+      {mode === "live" && (a.tracked_url || link) && (
         <div className="dm-tracking">
           <div className="section-heading">
             <h3>Link activity</h3>
@@ -799,17 +785,7 @@ function AttemptPanel({
             </p>
           )}
           <div className="actions">
-            {mode === "live" ? (
-              <Button onClick={() => void copy()}>Copy tracked link</Button>
-            ) : (
-              <Button
-                data-tour="dm-click"
-                disabled={busy || a.status !== "sent"}
-                onClick={click}
-              >
-                Simulate a click
-              </Button>
-            )}
+            <Button onClick={() => void copy()}>Copy tracked link</Button>
             <span className="muted small">
               {link?.bot_hits ?? 0} bot previews
             </span>

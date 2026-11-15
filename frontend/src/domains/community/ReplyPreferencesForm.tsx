@@ -41,8 +41,14 @@ export function ReplyPreferencesForm({
     return () => c.abort();
   }, [mode, account, revision]);
   return (
-    <section className="panel">
-      <h2>Reply settings</h2>
+    <section className="panel agent-behavior">
+      <header className="settings-section-heading">
+        <div>
+          <span className="eyebrow">ALL CHANNELS · FIRST DM & FOLLOW-UPS</span>
+          <h2>Agent behavior</h2>
+          <p>Set the voice, next step and handoff rules for your agent.</p>
+        </div>
+      </header>
       {error ? (
         <p role="alert">
           {error}{" "}
@@ -71,7 +77,7 @@ export function ReplyPreferencesForm({
             disabled={busy || loading}
           />
           <Button primary type="submit" disabled={busy || loading}>
-            {loading ? "Loading…" : "Save reply settings"}
+            {loading ? "Loading…" : "Save agent behavior"}
           </Button>
         </form>
       )}
@@ -92,7 +98,7 @@ export function ReplyPreferenceFields({
     <>
       <div className="form-columns">
         <label className="field">
-          Tone
+          Reply tone
           <select
             disabled={disabled}
             value={form.tone}
@@ -109,7 +115,7 @@ export function ReplyPreferenceFields({
           </select>
         </label>
         <label className="field">
-          Goal
+          Suggested next step
           <select
             disabled={disabled}
             value={form.goal}
@@ -127,7 +133,7 @@ export function ReplyPreferenceFields({
         </label>
       </div>
       <label className="field">
-        Topics to send to me
+        Topics I handle personally
         <input
           maxLength={1000}
           disabled={disabled}
@@ -138,8 +144,8 @@ export function ReplyPreferenceFields({
           }
         />
         <small>
-          Separate keywords with commas. Matching comments and DMs are sent to
-          you for review.
+          Separate keywords with commas. The agent hands matching messages to
+          you.
         </small>
       </label>
     </>

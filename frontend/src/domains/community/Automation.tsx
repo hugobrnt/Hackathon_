@@ -1,3 +1,4 @@
+import "./reply-settings.css";
 import type { CatalogProduct } from "../products/types";
 import { useEffect, useState } from "react";
 import type { DataMode } from "../../api/source";
@@ -63,7 +64,7 @@ export function Automation({
     return () => c.abort();
   }, [postId, source, mode, account, refresh]);
   return (
-    <>
+    <div className="reply-settings-page">
       <ReplyPreferencesForm
         mode={mode}
         account={account}
@@ -71,61 +72,57 @@ export function Automation({
         busy={busy}
         perform={perform}
       />
-      <div className="automation-grid">
-        <section className="panel">
-          <h2>Product routing</h2>
-          <p className="muted">
-            Each comment is matched to an active product. Uncertain matches wait
-            for your review.
-          </p>
-          <p>
-            {products.filter((p) => p.is_active).length} active products on this
-            channel
-          </p>
-          <Button onClick={onProducts}>Manage products →</Button>
-        </section>
-        <section className="panel">
-          <h2>Drafts or automatic replies</h2>
-          <label className="field">
-            Post
-            <select
-              value={postId}
-              disabled={!posts.length || busy}
-              onChange={(e) => setPostId(Number(e.target.value))}
-            >
-              {!posts.length && <option value={0}>Import a post first</option>}
-              {posts.map((p) => (
-                <option value={p.post.id} key={p.post.id}>
-                  {p.post.caption || "Untitled post"}
-                </option>
-              ))}
-            </select>
-          </label>
-          {error ? (
-            <div className="notice notice--error" role="alert">
-              {error}
-              <Button onClick={() => setRefresh((n) => n + 1)}>Retry</Button>
-            </div>
-          ) : !rule && postId ? (
-            <p role="status">Loading rules…</p>
-          ) : rule && detail ? (
-            <PostRules
-              key={postId + ":" + rule.updated_at}
-              mode={mode}
-              rule={rule}
-              detail={detail}
-              products={products.filter((p) => p.is_active)}
-              busy={busy}
-              perform={perform}
-              confirm={confirm}
-              refresh={() => setRefresh((n) => n + 1)}
-            />
-          ) : (
-            <p className="muted">Import content to configure Auto-DM.</p>
-          )}
-        </section>
-      </div>
-    </>
+      <section className="panel post-automation">
+        <header className="settings-section-heading">
+          <div>
+            <span className="eyebrow">THIS CHANNEL · PER POST</span>
+            <h2>Post automation</h2>
+            <p>Choose when Signal starts a DM from a comment.</p>
+          </div>
+          <Button onClick={onProducts}>
+            Products ({products.filter((p) => p.is_active).length}) ↗
+          </Button>
+        </header>
+        <label className="field">
+          Post
+          <select
+            value={postId}
+            disabled={!posts.length || busy}
+            onChange={(e) => setPostId(Number(e.target.value))}
+          >
+            {!posts.length && <option value={0}>Import a post first</option>}
+            {posts.map((p) => (
+              <option value={p.post.id} key={p.post.id}>
+                {(p.post.caption || "Untitled post").slice(0, 110)}
+                {p.post.caption.length > 110 ? "…" : ""}
+              </option>
+            ))}
+          </select>
+        </label>
+        {error ? (
+          <div className="notice notice--error" role="alert">
+            {error}
+            <Button onClick={() => setRefresh((n) => n + 1)}>Retry</Button>
+          </div>
+        ) : !rule && postId ? (
+          <p role="status">Loading rules…</p>
+        ) : rule && detail ? (
+          <PostRules
+            key={postId + ":" + rule.updated_at}
+            mode={mode}
+            rule={rule}
+            detail={detail}
+            products={products.filter((p) => p.is_active)}
+            busy={busy}
+            perform={perform}
+            confirm={confirm}
+            refresh={() => setRefresh((n) => n + 1)}
+          />
+        ) : (
+          <p className="muted">Import content to configure Auto-DM.</p>
+        )}
+      </section>
+    </div>
   );
 }
 function PostRules({
@@ -236,34 +233,64 @@ function PostRules({
   }
   return (
     <>
-      <label className="toggle-row">
-        <span>
-          <strong>Auto-DM</strong>
-          <small>For new eligible comments on this post</small>
-        </span>
-        <input
-          type="checkbox"
-          checked={form.enabled}
-          disabled={busy || !products.length}
-          onChange={(e) => setForm({ ...form, enabled: e.target.checked })}
-        />
-      </label>
-      <label className="toggle-row">
-        <span>
-          <strong>Require my approval</strong>
-          <small>Review every message before it is sent</small>
-        </span>
-        <input
-          type="checkbox"
-          checked={form.require_approval}
-          disabled={busy}
-          onChange={(e) =>
-            setForm({ ...form, require_approval: e.target.checked })
-          }
-        />
-      </label>
+      <fieldset className="reply-mode-options">
+        <legend>Sending mode</legend>
+        {(
+          [
+            ["off", "Off", "No new DMs from this post."],
+            [
+              "approval",
+              "Review first",
+              "Signal prepares a draft. You approve the first DM.",
+            ],
+            [
+              "automatic",
+              "Automatic",
+              "Send eligible DMs. Uncertain matches still need your review.",
+            ],
+          ] as const
+        ).map(([value, title, description]) => (
+          <label
+            key={value}
+            className={
+              (!form.enabled
+                ? "off"
+                : form.require_approval
+                  ? "approval"
+                  : "automatic") === value
+                ? "selected"
+                : ""
+            }
+          >
+            <input
+              type="radio"
+              name={"sending-mode-" + rule.post_id}
+              value={value}
+              checked={
+                (!form.enabled
+                  ? "off"
+                  : form.require_approval
+                    ? "approval"
+                    : "automatic") === value
+              }
+              disabled={busy || (value !== "off" && !products.length)}
+              onChange={() =>
+                setForm({
+                  ...form,
+                  enabled: value !== "off",
+                  require_approval: value !== "automatic",
+                })
+              }
+            />
+            <span>
+              <strong>{title}</strong>
+              <small>{description}</small>
+            </span>
+          </label>
+        ))}
+      </fieldset>
       <label className="field">
-        Product selection
+        Product to recommend
         <select
           disabled={busy}
           value={form.product_id ?? "auto"}
@@ -319,57 +346,57 @@ function PostRules({
         </Button>
       </div>
       <p className="footnote">
-        {dirty
-          ? "Save your changes before processing comments."
-          : "Rules saved for this post."}
+        {dirty ? "Unsaved changes" : "Saved for this post"}
       </p>
-      <hr />
-      <h3>Preview before processing</h3>
-      <label className="field">
-        Source comment
-        <select
-          value={messageId}
-          disabled={busy || !candidates.length}
-          onChange={(e) => {
-            setMessageId(Number(e.target.value));
-            setPreview(null);
-          }}
+      <details className="automation-preview">
+        <summary>Test a reply</summary>
+        <label className="field">
+          Source comment
+          <select
+            value={messageId}
+            disabled={busy || !candidates.length}
+            onChange={(e) => {
+              setMessageId(Number(e.target.value));
+              setPreview(null);
+            }}
+          >
+            {!candidates.length && (
+              <option value={0}>No eligible intent found</option>
+            )}
+            {candidates.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.author_name} · {intentLabels[m.classification!.intent]} ·{" "}
+                {m.text.slice(0, 70)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <Button
+          disabled={busy || !products.length || !messageId}
+          onClick={() =>
+            void perform(async () => {
+              const d = await source.preview(
+                messageId,
+                form.product_id ?? undefined,
+              );
+              setPreview(d);
+              return "Preview generated. No message sent.";
+            })
+          }
         >
-          {!candidates.length && (
-            <option value={0}>No eligible intent found</option>
-          )}
-          {candidates.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.author_name} · {intentLabels[m.classification!.intent]} ·{" "}
-              {m.text.slice(0, 70)}
-            </option>
-          ))}
-        </select>
-      </label>
-      <Button
-        disabled={busy || !products.length || !messageId}
-        onClick={() =>
-          void perform(async () => {
-            const d = await source.preview(
-              messageId,
-              form.product_id ?? undefined,
-            );
-            setPreview(d);
-            return "Preview generated. No message sent.";
-          })
-        }
-      >
-        Generate DM preview
-      </Button>
-      {preview && (
-        <div className="preview-draft">
-          <span className="pill">Preview only · {preview.writer}</span>
-          <p>{preview.text}</p>
-          <small>
-            Generating a preview creates a tracking link. It does not send a DM.
-          </small>
-        </div>
-      )}
+          Generate DM preview
+        </Button>
+        {preview && (
+          <div className="preview-draft">
+            <span className="pill">Preview only · {preview.writer}</span>
+            <p>{preview.text}</p>
+            <small>
+              Generating a preview creates a tracking link. It does not send a
+              DM.
+            </small>
+          </div>
+        )}
+      </details>
     </>
   );
 }

@@ -1,3 +1,7 @@
+import {
+  Notifications,
+  useNotifications,
+} from "./domains/notifications/Notifications";
 import { Products } from "./domains/products/Products";
 import { useEffect, useState, type FormEvent } from "react";
 import { api, request, ApiError } from "./api/client";
@@ -84,14 +88,13 @@ export default function App() {
     [period, setPeriod] = useState("all"),
     [menuOpen, setMenuOpen] = useState(false),
     [busy, setBusy] = useState(""),
-    [notice, setNotice] = useState<{ text: string; error?: boolean } | null>(
-      null,
-    ),
     [profileRevision, setProfileRevision] = useState(0),
     [tourStep, setTourStep] = useState<number>(() => {
       const n = readStored<unknown>(TOUR_KEY, -1);
       return typeof n === "number" && n >= 0 && n < tourSteps.length ? n : -1;
     });
+  const notifications = useNotifications();
+  const { notice, setNotice } = notifications;
   const [owner, setOwner] = useState<Owner | null>(null),
     [authLoading, setAuthLoading] = useState(true),
     [authError, setAuthError] = useState("");
@@ -154,6 +157,7 @@ export default function App() {
     setMenuOpen(false);
   }
   function changeMode(next: DataMode, destination = "dashboard") {
+    if (next !== mode) notifications.clear();
     setMode(next);
     saveStored("signal:mode", next);
     setQuery("");
@@ -570,6 +574,7 @@ export default function App() {
               onClick={() =>
                 void request("/auth/logout", { method: "POST" })
                   .then(() => {
+                    notifications.clear();
                     setOwner(null);
                     navigate("landing", {}, false);
                   })
@@ -610,13 +615,19 @@ export default function App() {
             )}
           </form>
           {mode === "demo" && <span className="pill pill--demo">Demo</span>}
-          <Button
-            className="topbar-settings"
-            aria-label="Brand settings"
-            onClick={() => navigate("profile")}
-          >
-            <Icon name="settings" />
-          </Button>
+          <div className="topbar-actions">
+            <Notifications {...notifications} />
+            <Button
+              className="topbar-settings"
+              aria-label="Brand settings"
+              onClick={() => navigate("profile")}
+            >
+              <Icon name="settings" />
+            </Button>
+          </div>
+          <span className="sr-only" role={notice?.error ? "alert" : "status"}>
+            {notice?.text ?? ""}
+          </span>
         </header>
         <main className="main">
           {mode === "demo" && tourStep >= 0 && (
@@ -695,20 +706,6 @@ export default function App() {
               </Button>
             </div>
           </div>
-          {notice && (
-            <div
-              className={"notice " + (notice.error ? "notice--error" : "")}
-              role={notice.error ? "alert" : "status"}
-            >
-              <span>{notice.text}</span>
-              <button
-                aria-label="Dismiss notification"
-                onClick={() => setNotice(null)}
-              >
-                ×
-              </button>
-            </div>
-          )}
           {workspace.error && (
             <div className="notice notice--error" role="alert">
               <span>{workspace.error}</span>

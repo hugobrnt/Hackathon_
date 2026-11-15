@@ -3832,3 +3832,8 @@ tbody td small {
   top: 0;
   right: 0;
 }
+
+.post-table .post-title { display:grid; grid-template-columns:24px 24px minmax(0,1fr); align-items:center; }
+.post-table .post-title .rank, .post-table .post-title > .platform-badge { justify-self:center; align-self:center; }
+.post-table .post-title > span:last-child { display:block; overflow:visible; }
+.post-title-caption { display:block; }

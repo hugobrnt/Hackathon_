@@ -1,3 +1,4 @@
+import { pushNotification } from "../notifications/Notifications";
 import { useEffect, useState } from "react";
 import type { DataMode } from "../../api/source";
 import type { SocialAccount } from "../../api/types";
@@ -22,8 +23,10 @@ export function Products({
     [revision, setRevision] = useState(0),
     [busy, setBusy] = useState(false),
     [editing, setEditing] = useState<CatalogProduct[] | null>(null),
-    [channels, setChannels] = useState<string[]>([]),
-    [notice, setNotice] = useState("");
+    [channels, setChannels] = useState<string[]>([]);
+  const setNotice = (text: string) => {
+    if (text) pushNotification({ text });
+  };
   useEffect(() => {
     const c = new AbortController();
     setLoading(true);
@@ -112,11 +115,6 @@ export function Products({
           </Button>
         </div>
       )}
-      {notice && (
-        <p role="status" className="notice">
-          {notice}
-        </p>
-      )}
       {editing !== null && (
         <section className="panel catalog-editor">
           <div className="section-heading">
@@ -195,9 +193,18 @@ export function Products({
                   </div>
                 </div>
                 {url && (
-                  <a href={url} target="_blank" rel="noreferrer">
-                    {p.landing_url} ↗
-                  </a>
+                  <div className="catalog-product-link">
+                    <span>Link:</span>
+                    <a
+                      href={url}
+                      target="_blank"
+                      rel="noreferrer"
+                      title={p.landing_url}
+                    >
+                      <span>{p.landing_url}</span>
+                      <span aria-hidden="true">↗</span>
+                    </a>
+                  </div>
                 )}
                 <p>{p.description}</p>
                 <div className="catalog-channel-tags">

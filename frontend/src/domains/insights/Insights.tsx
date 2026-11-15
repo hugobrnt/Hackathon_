@@ -1,3 +1,5 @@
+import { pushNotification } from "../notifications/Notifications";
+import { ProductReview } from "./ProductReview";
 import "./insights.css";
 import { catalogFor, groupCatalog } from "../products/api";
 import type { CatalogProduct } from "../products/types";
@@ -126,6 +128,10 @@ export function Insights({
     setBusy(false);
     setLoading(true);
     setRows([]);
+    if (productKey === "unassigned") {
+      setLoading(false);
+      return () => c.abort();
+    }
     void (async () => {
       const result: ReportRow[] = [];
       for (let i = 0; i < selected.length; i += 4) {
@@ -237,17 +243,23 @@ export function Insights({
   return (
     <>
       <Heading title="Product insights">
-        <Button
-          primary
-          disabled={loading || busy || catalogLoading || !selected.length}
-          onClick={() => void generate()}
-        >
-          {busy
-            ? "Analyzing…"
-            : reports.length
-              ? "Refresh insights"
-              : "Generate insights"}
-        </Button>
+        {productKey === "unassigned" ? (
+          <Button onClick={() => setRevision((n) => n + 1)}>
+            Refresh messages
+          </Button>
+        ) : (
+          <Button
+            primary
+            disabled={loading || busy || catalogLoading || !selected.length}
+            onClick={() => void generate()}
+          >
+            {busy
+              ? "Analyzing…"
+              : reports.length
+                ? "Refresh insights"
+                : "Generate insights"}
+          </Button>
+        )}
       </Heading>
       <div className="insights-layout">
         <aside
@@ -296,16 +308,18 @@ export function Insights({
           <h2 className="insights-scope-title">{productTitle}</h2>
           {productKey === "unassigned" && (
             <p className="muted small">
-              Messages with no product match, or a match that needs
-              confirmation.
+              Choose the product each message refers to. Confirming a match does
+              not send a DM.
             </p>
           )}
           {scope}
           <div className="section-heading product-insight-heading">
             <span className="muted small">
-              {loading
-                ? "Loading reports…"
-                : `${reports.length}/${selected.length} channel reports`}
+              {productKey === "unassigned"
+                ? "Human review"
+                : loading
+                  ? "Loading reports…"
+                  : `${reports.length}/${selected.length} channel reports`}
               {mode === "demo" ? " · Demo" : ""}
             </span>
             <label className="filter">
@@ -324,95 +338,115 @@ export function Insights({
               </select>
             </label>
           </div>
-          {!!failed.length && (
-            <div role="alert" className="notice notice--error">
-              <span>
-                {failed
-                  .map(
-                    (r) =>
-                      `${r.account.username ?? r.account.platform}: ${r.error}${r.report ? " Showing the previous report." : ""}`,
-                  )
-                  .join(" ")}
-              </span>
-              <Button disabled={busy} onClick={() => setRevision((n) => n + 1)}>
-                Reload reports
-              </Button>
-            </div>
-          )}
-          {!!missing.length && (
-            <div className="notice">
-              <span>
-                No report yet for{" "}
-                {missing
-                  .map((r) => r.account.username ?? r.account.platform)
-                  .join(", ")}
-                . Generate insights for the selected scope.
-              </span>
-            </div>
-          )}
-          <div className="metrics-grid">
-            {insightCategories.map((category) => (
-              <Metric
-                key={category}
-                label={labels[category]}
-                value={reports.length ? total(category) : "—"}
-                definition="Classified incoming messages, including comments and DMs. The API analyzes up to 150 messages per category and channel and returns up to 20 themes."
-              />
-            ))}
-          </div>
-          <div className="filter-row chips">
-            <button
-              className={"chip " + (filter === "all" ? "selected" : "")}
-              onClick={() => setFilter("all")}
-            >
-              All insights
-            </button>
-            {insightCategories.map((category) => (
-              <button
-                key={category}
-                data-tour={
-                  category === "feature_requests" ? "feature-filter" : undefined
-                }
-                data-tour-next={
-                  category === "feature_requests" && filter === category
-                    ? "feature-insight"
-                    : undefined
-                }
-                className={"chip " + (filter === category ? "selected" : "")}
-                onClick={() => setFilter(category)}
-              >
-                {labels[category]} <span>{total(category)}</span>
-              </button>
-            ))}
-          </div>
-          {!selected.length && !catalogLoading ? (
-            <div className="panel empty-inline">
-              This product is not linked to the selected channel or post. Choose
-              another channel.
-            </div>
-          ) : loading ? (
-            <p role="status" className="loading">
-              Loading insights…
-            </p>
-          ) : !visible.length ? (
-            <div className="panel empty-inline">
-              {reports.length
-                ? "No themes match this scope or search."
-                : "Generate your first product insights to see themes and audience quotes."}
-            </div>
+          {productKey === "unassigned" ? (
+            <ProductReview
+              key={`${mode}:${selected.map((a) => a.id).join(",")}:${post}:${revision}`}
+              mode={mode}
+              accounts={selected}
+              products={catalog}
+              post={post}
+              query={query}
+              onOpen={onOpen}
+              revision={revision}
+              onConfirmed={() =>
+                pushNotification({
+                  text: "Product confirmed. Refresh product insights to update grouped themes.",
+                })
+              }
+            />
           ) : (
-            <div className="product-insight-list">
-              {visible.map(({ theme, account, report }) => (
-                <ThemeRow
-                  key={account.id + ":" + report.run_id + ":" + theme.id}
-                  theme={theme}
-                  account={account}
-                  report={report}
-                  mode={mode}
-                  onOpen={onOpen}
-                />
-              ))}
-            </div>
+            <>
+              {!!failed.length && (
+                <div role="alert" className="notice notice--error">
+                  <span>
+                    {failed
+                      .map(
+                        (r) =>
+                          `${r.account.username ?? r.account.platform}: ${r.error}${r.report ? " Showing the previous report." : ""}`,
+                      )
+                      .join(" ")}
+                  </span>
+                  <Button
+                    disabled={busy}
+                    onClick={() => setRevision((n) => n + 1)}
+                  >
+                    Reload reports
+                  </Button>
+                </div>
+              )}
+              {!!missing.length && (
+                <div className="notice">
+                  <span>
+                    No report yet for{" "}
+                    {missing
+                      .map((r) => r.account.username ?? r.account.platform)
+                      .join(", ")}
+                    . Generate insights for the selected scope.
+                  </span>
+                </div>
+              )}
+              <div className="metrics-grid">
+                {insightCategories.map((category) => (
+                  <Metric
+                    key={category}
+                    label={labels[category]}
+                    value={reports.length ? total(category) : "—"}
+                    definition="Classified incoming messages, including comments and DMs. The API analyzes up to 150 messages per category and channel and returns up to 20 themes."
+                  />
+                ))}
+              </div>
+              <div className="filter-row chips">
+                <button
+                  className={"chip " + (filter === "all" ? "selected" : "")}
+                  onClick={() => setFilter("all")}
+                >
+                  All insights
+                </button>
+                {insightCategories.map((category) => (
+                  <button
+                    key={category}
+                    data-tour={
+                      category === "feature_requests"
+                        ? "feature-filter"
+                        : undefined
+                    }
+                    data-tour-next={
+                      category === "feature_requests" && filter === category
+                        ? "feature-insight"
+                        : undefined
+                    }
+                    className={
+                      "chip " + (filter === category ? "selected" : "")
+                    }
+                    onClick={() => setFilter(category)}
+                  >
+                    {labels[category]} <span>{total(category)}</span>
+                  </button>
+                ))}
+              </div>
+              {!selected.length && !catalogLoading ? (
+                <div className="panel empty-inline">
+                  This product is not linked to the selected channel or post.
+                  Choose another channel.
+                </div>
+              ) : loading ? (
+                <p role="status" className="loading">
+                  Loading insights…
+                </p>
+              ) : !visible.length ? (
+                <div className="panel empty-inline">
+                  {reports.length
+                    ? "No themes match this scope or search."
+                    : "Generate your first product insights to see themes and audience quotes."}
+                </div>
+              ) : (
+                <div className="product-insight-list">
+                  {visible.map(({ theme, account, report }) => (
+                    <ThemeRow key={account.id + ":" + report.run_id + ":" + theme.id} theme={theme} account={account} report={report} mode={mode} onOpen={onOpen} />
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

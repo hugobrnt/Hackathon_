@@ -45,7 +45,7 @@ export function demoPosts(account: string): PostDetail[] {
       classification: m.classification
         ? {
             ...m.classification,
-            ...demoProductMatch(a.id, m.text, d.post.caption),
+            ...demoProductMatch(a.id, m.text, d.post.caption, m.id + offset),
           }
         : null,
     })),
@@ -57,7 +57,7 @@ export function demoPosts(account: string): PostDetail[] {
       classification: m.classification
         ? {
             ...m.classification,
-            ...demoProductMatch(a.id, m.text, d.post.caption),
+            ...demoProductMatch(a.id, m.text, d.post.caption, m.id + offset),
           }
         : null,
     })),

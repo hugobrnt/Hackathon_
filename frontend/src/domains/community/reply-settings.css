@@ -1,0 +1,116 @@
+.reply-settings-page {
+  display: grid;
+  gap: 24px;
+  max-width: 1050px;
+}
+.reply-settings-page > .panel {
+  margin: 0;
+  padding: 28px;
+}
+.settings-section-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 18px;
+  margin-bottom: 24px;
+}
+.settings-section-heading .eyebrow {
+  font-size: 10px;
+  letter-spacing: 0.7px;
+  color: #8a8a8a;
+}
+.settings-section-heading h2 {
+  font-size: 21px;
+  margin: 8px 0;
+}
+.settings-section-heading p {
+  margin: 0;
+  color: #777;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.reply-settings-page .field {
+  gap: 8px;
+  font-size: 12px;
+  margin-bottom: 20px;
+}
+.reply-settings-page .field small {
+  font-weight: 400;
+  color: #888;
+  font-size: 11px;
+}
+.reply-settings-page .field select {
+  width: 100%;
+  min-width: 0;
+  text-overflow: ellipsis;
+}
+.reply-mode-options {
+  border: 0;
+  margin: 22px 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.reply-mode-options legend {
+  font-size: 12px;
+  font-weight: 550;
+  margin-bottom: 10px;
+}
+.reply-mode-options label {
+  display: flex;
+  gap: 10px;
+  align-items: start;
+  padding: 16px;
+  border: 1px solid #ddd;
+  border-radius: 9px;
+  cursor: pointer;
+}
+.reply-mode-options label.selected {
+  border-color: #222;
+  background: #fafafa;
+}
+.reply-mode-options input {
+  margin-top: 3px;
+  accent-color: #191919;
+}
+.reply-mode-options strong {
+  font-size: 13px;
+  display: block;
+  margin-bottom: 7px;
+}
+.reply-mode-options small {
+  font-size: 11px;
+  color: #777;
+  line-height: 1.5;
+  display: block;
+}
+.post-automation .toggle-row {
+  margin-bottom: 20px;
+}
+.automation-preview {
+  border-top: 1px solid var(--border);
+  margin-top: 24px;
+  padding-top: 20px;
+}
+.automation-preview > summary {
+  font-size: 13px;
+  font-weight: 550;
+  cursor: pointer;
+  padding-bottom: 12px;
+}
+.reply-settings-page .footnote {
+  font-size: 11px;
+  color: #888;
+}
+@media (max-width: 750px) {
+  .reply-mode-options {
+    grid-template-columns: 1fr;
+  }
+  .reply-settings-page > .panel {
+    padding: 20px;
+  }
+  .settings-section-heading {
+    flex-wrap: wrap;
+  }
+}

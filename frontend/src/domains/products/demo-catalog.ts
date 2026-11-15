@@ -58,6 +58,7 @@ export function writeDemoProduct(
   return product;
 }
 export function replaceDemoCatalog(account: string, inputs: CatalogInput[]) {
+  saveStored("signal:demo:product-matches:" + account, {});
   saveStored(
     key(account),
     inputs.map((p, i) => ({
@@ -74,8 +75,20 @@ export function demoProductMatch(
   account: string,
   text: string,
   caption: string,
+  messageId?: number,
 ) {
   const products = readDemoCatalog(account).filter((p) => p.is_active);
+  const confirmed = readStored<Record<string, number>>(
+    "signal:demo:product-matches:" + account,
+    {},
+  );
+  const manual = products.find((p) => p.id === confirmed[String(messageId)]);
+  if (manual)
+    return {
+      product_id: manual.id,
+      product_title: manual.title,
+      product_confidence: 1,
+    };
   if (products.length === 1)
     return {
       product_id: products[0].id,
@@ -97,4 +110,21 @@ export function demoProductMatch(
     product_title: p?.title ?? null,
     product_confidence: p ? 0.92 : 0.35,
   };
+}
+
+export function confirmDemoProduct(
+  account: string,
+  message: number,
+  product: number,
+) {
+  if (!readDemoCatalog(account).some((p) => p.id === product && p.is_active))
+    throw new Error("Choose an active product on this channel.");
+  const key = "signal:demo:product-matches:" + account;
+  if (
+    !saveStored(key, {
+      ...readStored<Record<string, number>>(key, {}),
+      [message]: product,
+    })
+  )
+    throw new Error("Product match could not be saved.");
 }
