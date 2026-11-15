@@ -104,7 +104,7 @@ Le classifieur attribue à chaque message une intention, un sentiment (positif, 
 | F7 bis | Auto-DM | L'utilisateur choisit son profil et renseigne son produit : nom, lien et description. **SaaS builder** : lien vers la landing page et description libre de ce que propose son SaaS (problème résolu, fonctionnalités, intégrations, prix, essai gratuit). **E-commerçant** : lien vers la page produit et description des faits (prix, tailles, livraison, retours, paiement, garanties). Le lien et la description sont obligatoires pour activer les DMs automatiques. Le DM renvoie vers ce lien. Le LLM adapte le ton au profil (essai ou inscription pour un SaaS, commande pour un e-commerçant) et utilise seulement la description pour répondre aux questions et aux objections, sans inventer d'information | P0 |
 | F8 | Auto-DM | Ajouter au DM un lien court tracké, un par commentaire (`/r/{code}`). L'API FastAPI compte le clic, puis redirige (302) vers la landing page avec les paramètres UTM (`utm_source` = réseau, `utm_medium=dm`, `utm_campaign=auto_dm`, `utm_content` = post, `utm_term` = intention). Les visites des robots d'aperçu (Instagram, Messenger) ne comptent pas comme des clics. Aucune IP ni aucun user agent n'est stocké. L'API calcule le taux de clic DM (liens cliqués ÷ DMs envoyés), au total et par post. Si l'API n'a pas d'URL publique (`TRACKING_BASE_URL`), le DM contient directement l'URL avec les UTM, sans comptage des clics | P0 |
 | F9 | Ads | Bouton « Booster » : booster un post Instagram publié via `POST /v1/ads/boost` (le post garde ses likes et ses commentaires). Prérequis Meta : un compte publicitaire Meta et une Page Facebook liée au compte Instagram. Garde-fous : clic de confirmation, budget total plafonné, campagne créée en pause par défaut. Le compte de démo reçoit une campagne simulée en `pending_review` | P0 |
-| F12 | Insights | Regrouper les messages similaires en thèmes (objections, features, besoins) avec des citations | P1 |
+| F12 | Insights | Regrouper les commentaires et DMs classés en thèmes, par catégorie : objections, demandes de features, besoins (questions pré-achat) et éloges. Chaque thème a un titre, un résumé, un nombre de mentions et jusqu'à 3 citations réelles, sans nom d'utilisateur. Le LLM regroupe les messages ; un regroupement par mots-clés sert de secours | P1 |
 | F13 | Auto-DM | Workflow conversationnel : suivre la réponse du prospect et adapter le message suivant | P1 |
 | F14 | Insights | Générer 3 idées de posts à partir des thèmes détectés | P1 |
 | F16 | Auto-DM | Répondre publiquement au commentaire (« Je t'envoie ça en DM ») | P1 |
@@ -127,7 +127,7 @@ Le classifieur attribue à chaque message une intention, un sentiment (positif, 
 | API et webhooks | Cloudflare Workers | Point d'entrée, routage, liens trackés |
 | Traitement asynchrone | Cloudflare Queues | Classification en tâche de fond |
 | Classification et génération | Workers AI (LLM) via AI Gateway | Intention, sentiment, textes de DM |
-| Clustering des insights | Workers AI (embeddings) + Vectorize | Regrouper les messages similaires |
+| Clustering des insights | Workers AI (LLM) | Regrouper les messages similaires en thèmes nommés |
 | Base de données | D1 | Posts, messages, scores, conversations |
 | État des conversations | Durable Objects ou Agents SDK | Mémoire du workflow DM par prospect |
 | Anti-doublon | KV | Un DM par personne et par post |
@@ -197,7 +197,7 @@ Le classifieur attribue à chaque message une intention, un sentiment (positif, 
 2. **H+0:30 → H+1:30 — Ingestion et classification.** Importer posts et commentaires dans D1. Écrire le prompt de classification. Brancher la Queue.
 3. **H+1:30 → H+2:30 — Dashboard.** Afficher le classement des posts et le détail par post. En parallèle : webhook + auto-DM + lien tracké.
 4. **H+2:30 → H+3:30 — Ads.** Bouton « Booster ».
-5. **H+3:30 → H+4:15 — P1.** Clustering des insights avec Vectorize. Workflow DM conversationnel si le temps le permet.
+5. **H+3:30 → H+4:15 — P1.** Regroupement des insights en thèmes (LLM). Workflow DM conversationnel si le temps le permet.
 6. **H+4:15 → H+5:00 — Démo.** Charger le jeu de données de secours. Répéter le scénario deux fois.
 
 **Répartition suggérée pour 3 personnes :** une personne sur le back-end et Zernio, une sur l'IA et les prompts, une sur le front-end et la démo.

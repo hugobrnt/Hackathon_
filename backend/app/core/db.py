@@ -26,6 +26,7 @@ def init_db(engine: Engine | None = None) -> None:
     from app.domains.products import models as _products  # noqa: F401
     from app.domains.tracking import models as _tracking  # noqa: F401
     from app.domains.ads import models as _ads  # noqa: F401
+    from app.domains.insights import models as _insights  # noqa: F401
 
     engine = engine or get_engine()
     SQLModel.metadata.create_all(engine)
