@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import type { DataMode } from "../../api/source";
 import { useBrandPosts } from "../accounts/useBrandPosts";
 import type { SocialAccount, Intent } from "../../api/types";
-import { useEvidence } from "../accounts/useWorkspace";
 import { aggregate } from "../analytics/model";
 import { formatPercent } from "../../shared/format";
 import { Insights } from "./Insights";
@@ -23,11 +22,7 @@ export function BrandInsights({
   onOpen: (id: number, account: string) => void;
 }) {
   const [channel, setChannel] = useState("all");
-  const { results, loading, allPosts, retry } = useBrandPosts(
-    mode,
-    accounts,
-    revision,
-  );
+  const { results, allPosts, retry } = useBrandPosts(mode, accounts, revision);
   const selected =
     channel === "all"
       ? results
@@ -39,7 +34,6 @@ export function BrandInsights({
         : allPosts.filter((p) => p.post.account_id === channel),
     [channel, allPosts],
   );
-  const evidence = useEvidence(mode, posts, !loading);
   const failed = selected.filter((r) => r.error);
   const scope = (
     <>
@@ -120,16 +114,12 @@ export function BrandInsights({
     <Insights
       key={channel + ":" + initial}
       posts={posts}
-      details={evidence.items}
-      loading={loading || evidence.loading}
-      error={evidence.error}
+      mode={mode}
+      accounts={accounts.filter((a) => channel === "all" || a.id === channel)}
       initial={initial}
       query={query}
       scope={scope}
-      onOpen={(id) => {
-        const p = posts.find((p) => p.post.id === id);
-        if (p) onOpen(id, p.post.account_id);
-      }}
+      onOpen={onOpen}
     />
   );
 }
