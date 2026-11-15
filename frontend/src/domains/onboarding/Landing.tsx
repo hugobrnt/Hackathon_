@@ -28,15 +28,15 @@ export function Landing({
       </nav>
       <main>
         <section className="hero">
-          <span className="pill">SOCIAL INTELLIGENCE. REAL NEXT STEPS.</span>
+          <span className="pill">PERFORMANCE. STRATEGY. COMMUNITY.</span>
           <h1>
-            Find buying signals.
+            Turn social attention
             <br />
-            Act on what people say.
+            into product demand.
           </h1>
           <p>
-            Spot high-intent posts, uncover product feedback and understand what
-            your audience wants next.
+            Find your strongest posts, understand what makes people buy, and
+            start the conversations that bring them to your product.
           </p>
           <div className="actions">
             <Button primary onClick={onDemo}>
@@ -58,18 +58,20 @@ export function Landing({
         <section id="product" className="landing-preview">
           <div className="preview-top">
             <span className="wordmark">signal</span>
-            <span className="pill">A closer look at your audience</span>
+            <span className="pill">From performance to action</span>
           </div>
           <div className="preview-grid">
             <div>
               <span className="eyebrow">YOUR NEXT MOVE</span>
               <h2>
-                More than a popular post.
-                <br />A useful signal.
+                Your best post.
+                <br />
+                Your next opportunity.
               </h2>
               <p>
-                Understand why a specific product demo brings people closer to
-                trying your product.
+                See which content creates buying intent. Use the comments to
+                choose what to promote, what to say next, and who to follow up
+                with.
               </p>
               <Button primary onClick={onDemo}>
                 Start the guided demo ↗
@@ -94,23 +96,23 @@ export function Landing({
           </div>
         </section>
         <section className="landing-section">
-          <h2>From audience noise to your next move.</h2>
+          <h2>Understand what works. Decide what’s next. Take action.</h2>
           <div className="value-grid">
             {[
               [
                 "posts",
-                "Find posts with buying signals",
-                "Rank content by intent and volume. Understand which formats deserve another test.",
+                "Analyze performance and buying intent",
+                "Compare your posts across channels. Find the content that attracts interested prospects, beyond views and likes.",
               ],
               [
                 "insights",
-                "Hear what your audience needs",
-                "Find praise, objections, feature requests and problems, with the original comments.",
+                "Guide your commercial strategy",
+                "Turn objections, product requests and customer feedback into clearer offers and better content decisions.",
               ],
               [
-                "analytics",
-                "See what changes over time",
-                "Track expressed intent without confusing comments, clicks and actual purchases.",
+                "conversations",
+                "Activate your community",
+                "Follow up on eligible comments with personalized DMs. Guide interested people to your product and track their clicks.",
               ],
             ].map(([icon, title, text]) => (
               <article className="panel" key={title}>
@@ -122,7 +124,7 @@ export function Landing({
           </div>
         </section>
         <section className="landing-section subtle" id="how-it-works">
-          <h2>Your brand. Your channels. Your next decision.</h2>
+          <h2>One brand. Every channel. A clear next step.</h2>
           <div className="value-grid">
             {[
               [
@@ -132,13 +134,13 @@ export function Landing({
               ],
               [
                 "02",
-                "Import and analyze",
-                "Bring in posts, metrics and comments. See the classification behind each signal.",
+                "Find your opportunities",
+                "See your strongest posts and open each product insight to read the comments behind it.",
               ],
               [
                 "03",
-                "Act on the evidence",
-                "Explore top posts, investigate requests and make better content decisions.",
+                "Start the right conversation",
+                "Use your product context to prepare DMs, review them, and follow the clicks they generate.",
               ],
             ].map(([n, t, s]) => (
               <article key={n}>
@@ -150,7 +152,7 @@ export function Landing({
           </div>
         </section>
         <section className="landing-section faq" id="questions">
-          <h2>A few things before you connect.</h2>
+          <h2>Your questions, answered.</h2>
           {[
             [
               "Does purchase intent mean a sale?",
@@ -158,7 +160,7 @@ export function Landing({
             ],
             [
               "Can I try this without an Instagram account?",
-              "Yes. The offline demo includes posts, source comments and classifications. It makes no API calls.",
+              "Yes. Try the full guided journey: connect sample channels, explore posts and insights, send a simulated DM and see its click in tracking.",
             ],
             [
               "Can I send real DMs?",
@@ -172,7 +174,7 @@ export function Landing({
           ))}
         </section>
         <section className="landing-cta">
-          <h2>Your audience is already telling you something.</h2>
+          <h2>Your next opportunity is already in your comments.</h2>
           <Button primary onClick={onDemo}>
             Try the complete demo →
           </Button>
@@ -180,7 +182,7 @@ export function Landing({
       </main>
       <footer>
         <span className="wordmark">signal</span>
-        <p>Intent. Insights. Better decisions.</p>
+        <p>Understand demand. Guide your strategy. Activate your community.</p>
         <button className="text-link" onClick={onResume}>
           Open workspace ↗
         </button>
